@@ -1,8 +1,9 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from app.database import get_db
-from app.models.subscription import Subscription, SubscriptionStatus, QuotationTemplate
+from app.models.plan import Plan
+from app.models.subscription import SubscriptionLine, Subscription, SubscriptionStatus, QuotationTemplate
 from app.models.user import User, UserRole
 from app.schemas.subscription import (
     SubscriptionCreate,
@@ -39,7 +40,9 @@ def list_quotation_templates(
     current_user: User = Depends(get_current_active_user),
 ):
     """List available quotation templates."""
-    return db.query(QuotationTemplate).filter(QuotationTemplate.is_active.is_(True)).all()
+    from app.services.subscription_service import decorate_template
+    templates = db.query(QuotationTemplate).filter(QuotationTemplate.is_active.is_(True)).all()
+    return [decorate_template(db, template) for template in templates]
 
 
 @router.post("/templates", response_model=QuotationTemplateResponse, status_code=status.HTTP_201_CREATED)
@@ -49,6 +52,12 @@ def create_template(
     staff_user: User = Depends(require_staff_or_admin),
 ):
     """Create a new quotation template (staff and admin only)."""
+    from app.models.plan import Plan
+    from app.services.subscription_service import validate_template_products, decorate_template
+    plan = db.get(Plan, template_in.plan_id)
+    if not plan or not plan.is_active:
+        raise HTTPException(status_code=400, detail="Choose an active plan.")
+    validate_template_products(db, template_in.default_lines)
     template = QuotationTemplate(
         name=template_in.name.strip(),
         plan_id=template_in.plan_id,
@@ -67,7 +76,8 @@ def create_template(
         user_id=staff_user.id,
         details=f"Template created: {template.name}"
     )
-    return template
+    from app.services.subscription_service import decorate_template
+    return decorate_template(db, template)
 
 
 @router.get("/templates/{template_id}", response_model=QuotationTemplateResponse)
@@ -80,7 +90,8 @@ def get_template(
     template = db.query(QuotationTemplate).filter(QuotationTemplate.id == template_id).first()
     if not template:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quotation template not found")
-    return template
+    from app.services.subscription_service import decorate_template
+    return decorate_template(db, template)
 
 
 @router.post("/templates/{template_id}/apply", response_model=SubscriptionResponse, status_code=status.HTTP_201_CREATED)
@@ -114,6 +125,7 @@ def apply_quotation_template(
         user_id=current_user.id,
         details=f"Template {template_id} applied to create subscription {sub.subscription_number}"
     )
+    sub.total_amount = round(sum(line.total for line in sub.lines), 2)
     return sub
 
 
@@ -132,7 +144,7 @@ def list_subscriptions(
     Customers are restricted to their own subscriptions.
     Staff and admins can query across all customers with filters.
     """
-    query = db.query(Subscription)
+    query = db.query(Subscription).options(selectinload(Subscription.lines).selectinload(SubscriptionLine.product), selectinload(Subscription.lines).selectinload(SubscriptionLine.variant), selectinload(Subscription.customer), selectinload(Subscription.plan).selectinload(Plan.product))
 
     if current_user.role == UserRole.customer:
         query = query.filter(Subscription.customer_id == current_user.id)
@@ -351,3 +363,24 @@ def create_invoice_for_subscription(
         details=f"Generated invoice {inv.invoice_number} for subscription {subscription_id}"
     )
     return inv
+
+
+@router.post("/{subscription_id}/renew", response_model=SubscriptionResponse)
+def renew(subscription_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_active_user)):
+    from datetime import datetime
+    from app.services.calendar import advance
+    sub = db.query(Subscription).filter(Subscription.id == subscription_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+    if user.role == UserRole.customer and sub.customer_id != user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not sub.plan.allow_renewal or sub.status in (SubscriptionStatus.draft, SubscriptionStatus.quotation):
+        raise HTTPException(status_code=400, detail="This subscription cannot be renewed.")
+    sub.expiry_date = advance(max(sub.expiry_date or datetime.utcnow(), datetime.utcnow()), sub.plan.billing_cycle)
+    if sub.status == SubscriptionStatus.closed:
+        sub.status = SubscriptionStatus.confirmed
+        sub.next_billing_date = datetime.utcnow()
+    db.commit()
+    sub.total_amount = round(sum(l.total for l in sub.lines), 2)
+    log_activity(db, "subscription_renewed", "subscription", sub.id, user.id, f"Renewed {sub.subscription_number}")
+    return sub

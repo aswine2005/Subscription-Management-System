@@ -56,7 +56,7 @@ def request_password_reset(db: Session, email: str) -> str:
     if not user:
         # Avoid user enumeration in public API by returning a generic token representation
         # but don't error out; simulate success
-        return "mock-token-dispatched"
+        return ""
 
     token = generate_reset_token()
     user.reset_token = token

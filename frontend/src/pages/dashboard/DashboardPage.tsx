@@ -1,266 +1,418 @@
-import React from 'react';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import {
-  Repeat,
-  DollarSign,
-  TrendingUp,
-  AlertCircle,
-  Plus,
-  Zap,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+import {
   ArrowUpRight,
-  Clock,
-  Sparkles,
+  ArrowRight,
+  Plus,
+  Download,
+  Target,
+  Repeat2,
+  Clock3,
+  ShieldCheck,
+  Flag,
+  ChevronRight,
+  Activity,
+  Wallet,
+  CheckCircle2,
 } from 'lucide-react';
 import { dashboardApi } from '../../api/dashboard';
-import { StatCard } from '../../components/ui/StatCard';
-import { Card, CardHeader } from '../../components/ui/Card';
+import { recoveryApi } from '../../api/recovery';
+import apiClient from '../../api/client';
+import {
+  formatCurrency,
+  formatCompactCurrency,
+  formatDate,
+  formatRelativeTime,
+} from '../../utils/formatters';
 import { Button } from '../../components/ui/Button';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
-import { RevenueChart } from '../../components/charts/RevenueChart';
-import { SubscriptionChart } from '../../components/charts/SubscriptionChart';
-import { PlanDistribution } from '../../components/charts/PlanDistribution';
-import { formatCurrency, formatNumber, formatRelativeTime } from '../../utils/formatters';
 
-export const DashboardPage: React.FC = () => {
+export function DashboardPage() {
   const navigate = useNavigate();
-
-  const { data: summary, isLoading, error } = useQuery({
+  const [months, setMonths] = useState(6);
+  const {
+    data: d,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['dashboard-summary'],
     queryFn: dashboardApi.getSummary,
+    refetchInterval: 30000,
   });
-
-  if (isLoading) {
+  const { data: recovery } = useQuery({
+    queryKey: ['recovery', 1],
+    queryFn: ({ signal }) => recoveryApi.overview(1, signal),
+    refetchInterval: 30000,
+  });
+  const { data: billing } = useQuery({
+    queryKey: ['billing-preview'],
+    queryFn: async () => (await apiClient.get('/invoices/billing-preview')).data,
+    refetchInterval: 30000,
+  });
+  if (isLoading)
     return (
-      <div className="py-24">
-        <LoadingSpinner size="lg" text="Analyzing real-time metrics & financial streams..." />
+      <div className="py-32">
+        <LoadingSpinner text="Getting your business in view…" />
       </div>
     );
-  }
-
-  if (error || !summary) {
+  if (isError || !d)
     return (
-      <div className="p-8 text-center glass-card rounded-2xl">
-        <AlertCircle className="w-10 h-10 text-rose-500 mx-auto mb-2" />
-        <h3 className="text-lg font-bold">Failed to load dashboard metrics</h3>
-        <p className="text-sm text-slate-500 mt-1">Please verify backend connectivity.</p>
+      <div className="panel p-8">
+        <h1 className="page-heading">Your workspace is temporarily unavailable.</h1>
+        <p className="subtle my-4">Check the local API connection and try again.</p>
+        <Button onClick={() => refetch()}>Try again</Button>
       </div>
     );
-  }
-
+  const chart = d.revenue_chart
+    .slice(-months)
+    .map((m) => ({ ...m, label: formatDate(m.month + '-01', 'MMM') }));
+  const periodRevenue = chart.reduce((a, m) => a + m.revenue, 0);
+  const lastMonth = d.revenue_chart[d.revenue_chart.length - 2]?.revenue || 0;
+  const change = lastMonth ? ((d.revenue_this_month - lastMonth) / lastMonth) * 100 : null;
+  const overdue = recovery?.summary.overdue_balance ?? d.overdue_amount;
+  const overdueShare =
+    recovery?.summary.overdue_share ??
+    (d.outstanding_revenue ? (d.overdue_amount / d.outstanding_revenue) * 100 : 0);
+  const exportReport = () => {
+    const rows = [
+      ['Metric', 'Value', 'Currency'],
+      ['Monthly recurring revenue', d.mrr, 'INR'],
+      ['Annual recurring revenue', d.arr, 'INR'],
+      ['Active subscriptions', d.active_subscriptions, ''],
+      ['Collected this month', d.revenue_this_month, 'INR'],
+      ['Outstanding', d.outstanding_revenue, 'INR'],
+      ['Overdue invoices', d.overdue_invoices, ''],
+      ['Overdue amount', d.overdue_amount, 'INR'],
+      [],
+      ['Month', 'Collected revenue', 'Currency'],
+      ...chart.map((m) => [m.month, m.revenue, 'INR']),
+    ];
+    const anchor = document.createElement('a');
+    anchor.href = URL.createObjectURL(
+      new Blob(['\uFEFF' + rows.map((row) => row.join(',')).join('\n')], {
+        type: 'text/csv;charset=utf-8',
+      }),
+    );
+    anchor.download = `brightloop-revenue-INR-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
+  };
   return (
-    <div className="space-y-6">
-      {/* Header & Quick Action Row */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="command-overview">
+      <div className="command-heading">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-              Revenue & Subscription Intelligence
-            </h1>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Live Data
-            </span>
-          </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Real-time subscriber lifecycle, recurring revenue, and billing operations.
-          </p>
+          <div className="section-kicker">YOUR REVENUE WORKSPACE</div>
+          <h1>
+            Overview<span>.</span>
+          </h1>
+          <p>A clear picture. A better next move.</p>
         </div>
-
-        <div className="flex items-center gap-2.5">
+        <div className="command-heading-actions">
           <Button
             variant="secondary"
-            leftIcon={<Zap className="w-4 h-4 text-indigo-500" />}
-            onClick={() => navigate('/invoices')}
+            aria-label="Export report"
+            leftIcon={<Download size={14} />}
+            onClick={exportReport}
           >
-            Billing Ops
+            <span className="export-label">Export report</span>
           </Button>
-          <Button
-            variant="primary"
-            leftIcon={<Plus className="w-4 h-4" />}
-            onClick={() => navigate('/subscriptions')}
-          >
-            New Subscription
+          <Button leftIcon={<Plus size={14} />} onClick={() => navigate('/subscriptions?new=1')}>
+            New subscription
           </Button>
         </div>
       </div>
-
-      {/* Top Row: 4 StatCards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <StatCard
-          label="Active Subscriptions"
-          value={formatNumber(summary.active_subscriptions)}
-          change={summary.active_subscriptions_change}
-          changeLabel="vs last month"
-          icon={<Repeat className="w-6 h-6" />}
-          iconColor="indigo"
-        />
-        <StatCard
-          label="Monthly Recurring Revenue"
-          value={formatCurrency(summary.mrr)}
-          change={summary.mrr_change}
-          changeLabel="vs last month"
-          icon={<DollarSign className="w-6 h-6" />}
-          iconColor="purple"
-        />
-        <StatCard
-          label="Revenue This Month"
-          value={formatCurrency(summary.revenue_this_month)}
-          change={summary.revenue_this_month_change}
-          changeLabel="vs last month"
-          icon={<TrendingUp className="w-6 h-6" />}
-          iconColor="emerald"
-        />
-        <StatCard
-          label="Overdue Invoices"
-          value={formatNumber(summary.overdue_invoices)}
-          change={summary.overdue_invoices_change}
-          changeLabel="vs last month"
-          icon={<AlertCircle className="w-6 h-6" />}
-          iconColor="rose"
-        />
-      </div>
-
-      {/* Charts Row: Revenue Growth + Subscription Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Revenue Trend Area Chart */}
-        <div className="lg:col-span-2">
-          <Card className="h-full">
-            <CardHeader
-              title="Revenue Trajectory (Last 12 Months)"
-              subtitle="Audited recurring payments vs forecast milestones"
-              action={
-                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2.5 py-1 rounded-lg">
-                  MRR Trend
-                </span>
-              }
-            />
-            <div className="pt-2">
-              <RevenueChart data={summary.revenue_chart} height={310} />
-            </div>
-          </Card>
+      <section className="revenue-story">
+        <div className="story-copy">
+          <span className="story-label">
+            <Target size={13} /> THE REVENUE RECOVERY LAB <span>NEW</span>
+          </span>
+          <h2>
+            Revenue earned.
+            <br />
+            <em>Cash still waiting.</em>
+          </h2>
+          <p>
+            <strong>{formatCurrency(overdue)}</strong> is overdue
+            {recovery ? ` across ${recovery.summary.overdue_account_count} customers` : ''}. Turn
+            the outstanding into an action list.
+          </p>
+          <Link to="/recovery" className="story-cta">
+            Find the next best move <ArrowUpRight size={15} />
+          </Link>
         </div>
-
-        {/* Subscription Status Donut Chart */}
-        <div>
-          <Card className="h-full">
-            <CardHeader
-              title="Subscription States"
-              subtitle="Active distribution across customer portfolio"
-            />
-            <div className="pt-1">
-              <SubscriptionChart data={summary.subscription_status} height={230} />
-            </div>
-          </Card>
+        <div className="story-ledger">
+          <div className="story-ledger-label">
+            <span>THE COLLECTION PICTURE</span>
+            <ShieldCheck size={14} />
+          </div>
+          <div className="story-ledger-row">
+            <span>
+              <i className="ledger-marker overdue" />
+              Overdue invoices
+            </span>
+            <strong>{formatCurrency(overdue)}</strong>
+          </div>
+          <div className="story-ledger-row">
+            <span>
+              <i className="ledger-marker upcoming" />
+              Other open receivables
+            </span>
+            <strong>{formatCurrency(Math.max(0, d.outstanding_revenue - overdue))}</strong>
+          </div>
+          <div className="story-balance-track">
+            <span style={{ width: `${Math.min(100, overdueShare)}%` }} />
+          </div>
+          <p>
+            <b>{overdueShare.toFixed(1)}%</b> of your open receivables are overdue.
+          </p>
+          <div className="story-ledger-footer">
+            <span>Real balances. Explainable priorities.</span>
+            <ArrowRight size={14} />
+          </div>
         </div>
-      </div>
-
-      {/* Plan Distribution Bar Chart & Top Customers */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Plan Distribution */}
-        <div className="lg:col-span-1">
-          <Card className="h-full">
-            <CardHeader
-              title="Plan Distribution"
-              subtitle="Active members enrolled per tier"
-            />
-            <div className="pt-2">
-              <PlanDistribution data={summary.plan_distribution} height={280} />
+      </section>
+      <section className="command-metrics" aria-label="Business summary">
+        {[
+          {
+            label: 'Monthly recurring revenue',
+            value: formatCurrency(d.mrr),
+            detail: `${formatCurrency(d.arr)} annualized`,
+            icon: Repeat2,
+          },
+          {
+            label: 'Active subscriptions',
+            value: String(d.active_subscriptions).padStart(2, '0'),
+            detail: `${d.plan_distribution.filter((p) => p.subscribers).length} plans in use`,
+            icon: ShieldCheck,
+          },
+          {
+            label: 'Collected this month',
+            value: formatCurrency(d.revenue_this_month),
+            detail:
+              change === null
+                ? 'From completed receipts'
+                : `${change >= 0 ? '+' : ''}${change.toFixed(1)}% compared with last month`,
+            icon: Wallet,
+          },
+          {
+            label: 'Outstanding balance',
+            value: formatCurrency(d.outstanding_revenue),
+            detail: `${d.overdue_invoices} overdue invoices`,
+            icon: Clock3,
+          },
+        ].map((metric) => (
+          <article className="command-metric" key={metric.label}>
+            <div>
+              <span>{metric.label}</span>
+              <metric.icon size={15} strokeWidth={1.5} />
             </div>
-          </Card>
-        </div>
-
-        {/* Top 5 Customers */}
-        <div className="lg:col-span-2">
-          <Card className="h-full">
-            <CardHeader
-              title="Top Enterprise Customers"
-              subtitle="Accounts generating highest lifetime recurring value"
-              action={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  rightIcon={<ArrowUpRight className="w-3.5 h-3.5" />}
-                  onClick={() => navigate('/subscriptions')}
+            <strong>{metric.value}</strong>
+            <p>{metric.detail}</p>
+          </article>
+        ))}
+      </section>
+      <div className="command-grid">
+        <section className="panel cash-chart-panel">
+          <div className="command-panel-head">
+            <div>
+              <h2>Collected revenue</h2>
+              <p>Money that reached your ledger.</p>
+            </div>
+            <div className="chart-tabs">
+              {[6, 12].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setMonths(n)}
+                  className={months === n ? 'active' : ''}
                 >
-                  View All
-                </Button>
-              }
-            />
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    <th className="pb-3">Client</th>
-                    <th className="pb-3">Subscriptions</th>
-                    <th className="pb-3 text-right">Total Spent</th>
-                    <th className="pb-3 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {summary.top_customers.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                      <td className="py-3">
-                        <div className="font-semibold text-slate-900 dark:text-slate-100">
-                          {c.name}
-                        </div>
-                        <div className="text-xs text-slate-400">{c.email}</div>
-                      </td>
-                      <td className="py-3 text-slate-600 dark:text-slate-300">
-                        {c.subscriptions_count} active
-                      </td>
-                      <td className="py-3 text-right font-bold text-slate-900 dark:text-white">
-                        {formatCurrency(c.total_spent)}
-                      </td>
-                      <td className="py-3 text-right">
-                        <span className="inline-block px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
-                          Active
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                  {n} months
+                </button>
+              ))}
             </div>
-          </Card>
-        </div>
-      </div>
-
-      {/* Recent Activity Feed */}
-      <Card>
-        <CardHeader
-          title="Audit Log & Activity Feed"
-          subtitle="Real-time timeline of billing events, state shifts, and invoice receipts"
-        />
-        <div className="divide-y divide-slate-100 dark:divide-slate-800/70">
-          {summary.recent_activity.map((act) => (
-            <div key={act.id} className="py-3.5 flex items-start gap-3.5 first:pt-1 last:pb-1">
-              <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <h5 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                    {act.title}
-                  </h5>
-                  <span className="flex items-center gap-1 text-[11px] text-slate-400 shrink-0">
-                    <Clock className="w-3 h-3" />
-                    <span>{formatRelativeTime(act.timestamp)}</span>
-                  </span>
+          </div>
+          <div className="cash-chart-number">
+            {formatCurrency(periodRevenue)}
+            <span>over {months} months</span>
+          </div>
+          <div className="cash-chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chart} margin={{ top: 15, right: 20, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="cash-shade" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#a75c40" stopOpacity={0.18} />
+                    <stop offset="100%" stopColor="#a75c40" stopOpacity={0.01} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} stroke="#e9ece5" strokeDasharray="3 5" />
+                <XAxis
+                  dataKey="label"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#8d9788', fontSize: 10 }}
+                  dy={8}
+                />
+                <YAxis
+                  tickFormatter={formatCompactCurrency}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#8d9788', fontSize: 10 }}
+                  width={59}
+                  tickCount={4}
+                />
+                <Tooltip
+                  formatter={(value: number) => [formatCurrency(value), 'Collected']}
+                  contentStyle={{ border: '1px solid #dfe5d9', borderRadius: 8, fontSize: 12 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#aa6348"
+                  strokeWidth={2}
+                  fill="url(#cash-shade)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="command-chart-foot">
+            <span>
+              <i />
+              Actual receipts · INR
+            </span>
+            <span>Updates every 30 seconds</span>
+          </div>
+        </section>
+        <section className="panel money-motion">
+          <div className="command-panel-head">
+            <div>
+              <h2>Money in motion</h2>
+              <p>The next few days, in one place.</p>
+            </div>
+            <ArrowUpRight size={16} />
+          </div>
+          <Link to="/billing" className="motion-row">
+            <span className="motion-icon">
+              <Repeat2 size={17} />
+            </span>
+            <div>
+              <span>Ready for the next billing run</span>
+              <strong>{billing ? formatCurrency(billing.total) : '—'}</strong>
+              <small>{billing?.ready_count ?? '—'} contracts due to invoice</small>
+            </div>
+            <ChevronRight size={14} />
+          </Link>
+          <Link to="/invoices" className="motion-row">
+            <span className="motion-icon">
+              <Clock3 size={17} />
+            </span>
+            <div>
+              <span>Invoices due in the next 7 days</span>
+              <strong>
+                {recovery ? formatCurrency(recovery.summary.due_next_seven_days) : '—'}
+              </strong>
+              <small>Outstanding issued invoices</small>
+            </div>
+            <ChevronRight size={14} />
+          </Link>
+          <Link to="/recovery" className="motion-row">
+            <span className="motion-icon">
+              <Flag size={17} />
+            </span>
+            <div>
+              <span>Payment promises · next 14 days</span>
+              <strong>
+                {recovery ? formatCurrency(recovery.summary.promised_next_fourteen_days) : '—'}
+              </strong>
+              <small>{recovery?.summary.active_promises ?? 0} commitments on track</small>
+            </div>
+            <ChevronRight size={14} />
+          </Link>
+        </section>
+        <section className="panel command-shortlist">
+          <div className="command-panel-head">
+            <div>
+              <h2>Start with these conversations</h2>
+              <p>A collection short list, with the reasoning attached.</p>
+            </div>
+            <Link to="/recovery" className="text-link">
+              Open recovery lab <ArrowUpRight size={13} />
+            </Link>
+          </div>
+          {recovery?.accounts.length ? (
+            recovery.accounts.slice(0, 3).map((account, index) => (
+              <Link to="/recovery" key={account.customer_id} className="shortlist-row">
+                <span className="shortlist-number">{String(index + 1).padStart(2, '0')}</span>
+                <div>
+                  <strong>{account.company_name || account.customer_name}</strong>
+                  <p>
+                    {account.max_days_overdue} days overdue · {account.recommended_action}
+                  </p>
                 </div>
-                <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                  {act.description}
-                </p>
-                {act.user && (
-                  <span className="inline-block mt-1 text-[10px] text-indigo-500 font-medium">
-                    Triggered by: {act.user}
-                  </span>
-                )}
+                <b>{formatCurrency(account.overdue_balance)}</b>
+                <ChevronRight size={13} />
+              </Link>
+            ))
+          ) : (
+            <div className="command-no-arrears">
+              <CheckCircle2 size={22} />
+              <p>
+                {recovery
+                  ? 'No overdue balances. You’re caught up.'
+                  : 'Reading the collection ledger…'}
+              </p>
+            </div>
+          )}
+          <div className="shortlist-foot">
+            <Target size={12} />
+            Priorities are based on invoice age, balance, and missed promises.
+          </div>
+        </section>
+        <section className="panel command-activity">
+          <div className="command-panel-head">
+            <div>
+              <h2>Latest in your workspace</h2>
+              <p>A trace of what changed.</p>
+            </div>
+            <Activity size={16} />
+          </div>
+          {d.recent_activity.slice(0, 3).map((activity) => (
+            <div className="command-activity-row" key={activity.id}>
+              <span className="activity-timeline-dot" />
+              <div>
+                <strong>{activity.title}</strong>
+                <p>{activity.description}</p>
+                <small>
+                  {activity.user} · {formatRelativeTime(activity.timestamp)}
+                </small>
               </div>
             </div>
           ))}
+        </section>
+      </div>
+      <div className="command-plan-strip">
+        <span>YOUR SUBSCRIPTION MIX</span>
+        <div>
+          {d.plan_distribution.slice(0, 4).map((plan) => (
+            <Link to="/subscriptions" key={plan.name}>
+              {plan.name}
+              <b>{plan.subscribers}</b>
+            </Link>
+          ))}
         </div>
-      </Card>
+        <Link to="/subscriptions" className="text-link">
+          All contracts <ArrowRight size={12} />
+        </Link>
+      </div>
     </div>
   );
-};
+}

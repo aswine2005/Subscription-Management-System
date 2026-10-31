@@ -261,19 +261,19 @@ def seed_database():
             "Enterprise SaaS Onboarding Pack",
             created_plans[1].id,  # ERP Annual Enterprise
             30,
-            '[{"product_id": 1, "variant_id": 1, "quantity": 5, "unit_price": 1760.0, "tax_rate": 18.0}, {"product_id": 4, "variant_id": 6, "quantity": 1, "unit_price": 1200.0, "tax_rate": 18.0}]'
+            '[{"product_id": 1, "variant_id": 1, "quantity": 5, "unit_price": 1200.0, "tax_rate": 18.0}, {"product_id": 4, "variant_id": 7, "quantity": 1, "unit_price": 800.0, "tax_rate": 18.0}]'
         ),
         (
             "Startup Growth Bundle",
             created_plans[2].id,  # CRM Starter Monthly
             15,
-            '[{"product_id": 2, "variant_id": 4, "quantity": 3, "unit_price": 530.0, "tax_rate": 18.0}]'
+            '[{"product_id": 2, "variant_id": 5, "quantity": 3, "unit_price": 450.0, "tax_rate": 18.0}]'
         ),
         (
             "Complete Cloud Suite",
             created_plans[0].id,  # ERP Monthly Growth
             45,
-            '[{"product_id": 1, "variant_id": null, "quantity": 1, "unit_price": 1200.0, "tax_rate": 18.0}, {"product_id": 3, "variant_id": 5, "quantity": 1, "unit_price": 430.0, "tax_rate": 18.0}]'
+            '[{"product_id": 1, "variant_id": null, "quantity": 1, "unit_price": 1200.0, "tax_rate": 18.0}, {"product_id": 3, "variant_id": 6, "quantity": 1, "unit_price": 250.0, "tax_rate": 18.0}]'
         ),
     ]
     for qname, plan_id, val_days, default_lines in quotation_templates_data:
@@ -570,7 +570,7 @@ def seed_database():
         ("user_logged_in", "user", admin_user.id, "Admin logged into system console"),
         ("subscription_created", "subscription", created_subs[0].id, "New subscription SUB-2026-00001 created"),
         ("invoice_generated", "invoice", created_invoices[0].id, "Invoice INV-2026-00001 auto-generated"),
-        ("payment_recorded", "payment", 1, "Payment of $1,416.00 settled via Credit Card"),
+        ("payment_recorded", "payment", 1, "Payment of ₹1,416.00 settled via Credit Card"),
         ("subscription_status_transition", "subscription", created_subs[1].id, "Subscription transitioned to active"),
         ("discount_created", "discount", 1, "Discount campaign WELCOME20 launched"),
         ("tax_rule_created", "tax_rule", 1, "Standard GST rule (18%) activated"),

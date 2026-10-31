@@ -1,54 +1,35 @@
-import logging
-from typing import Optional
+import os
+import smtplib
+from pathlib import Path
+from datetime import datetime
+from email.message import EmailMessage
+from uuid import uuid4
+from app.utils.money import format_inr
 
-logger = logging.getLogger("brightloop.email")
-logging.basicConfig(level=logging.INFO)
+def deliver(to_email, subject, body):
+    message = EmailMessage()
+    message['To'] = to_email
+    message['From'] = os.getenv('SMTP_FROM', 'billing@brightloop.local')
+    message['Subject'] = subject
+    message.set_content(body)
+    host = os.getenv('SMTP_HOST')
+    if host:
+        with smtplib.SMTP(host, int(os.getenv('SMTP_PORT', '587')), timeout=10) as smtp:
+            smtp.starttls()
+            if os.getenv('SMTP_USER'):
+                smtp.login(os.environ['SMTP_USER'], os.environ['SMTP_PASSWORD'])
+            smtp.send_message(message)
+        return True
+    outbox = Path(__file__).resolve().parents[2] / 'outbox'
+    outbox.mkdir(mode=0o700, exist_ok=True)
+    path = outbox / f"{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}-{uuid4().hex[:8]}.eml"
+    path.write_bytes(message.as_bytes())
+    path.chmod(0o600)
+    return False
 
-def send_password_reset_email(to_email: str, reset_token: str, full_name: Optional[str] = None) -> bool:
-    """
-    Simulate sending a password reset email and log formatted message to console.
-    """
-    greeting = f"Hello {full_name}," if full_name else "Hello,"
-    message = f"""
-============================================================
-[SIMULATED EMAIL SERVICE]
-TO: {to_email}
-SUBJECT: BrightLoop - Password Reset Request
-------------------------------------------------------------
-{greeting}
+def send_password_reset_email(to_email, reset_token, full_name=None):
+    url = os.getenv('FRONTEND_URL', 'http://localhost:3000') + '/reset-password?token=' + reset_token
+    return deliver(to_email, 'Reset your Brightloop password', f"Hello {full_name or ''},\n\nReset your password: {url}\n\nThis single-use link expires in one hour. If you did not request it, ignore this message.")
 
-You recently requested to reset your BrightLoop account password.
-Please use the following reset token to set a new password:
-
-Reset Token: {reset_token}
-
-This token will expire in 1 hour.
-If you did not request this, please disregard this email.
-============================================================
-"""
-    print(message)
-    logger.info("Password reset email sent to %s with token %s", to_email, reset_token)
-    return True
-
-
-def send_invoice_notification(to_email: str, invoice_number: str, total_amount: float, due_date: str) -> bool:
-    """
-    Simulate sending an invoice notification email.
-    """
-    message = f"""
-============================================================
-[SIMULATED EMAIL SERVICE]
-TO: {to_email}
-SUBJECT: BrightLoop - Invoice {invoice_number} Generated
-------------------------------------------------------------
-Dear Customer,
-
-Your invoice {invoice_number} for the amount of ${total_amount:.2f} has been generated.
-Payment is due on {due_date}.
-
-Thank you for choosing BrightLoop!
-============================================================
-"""
-    print(message)
-    logger.info("Invoice notification sent to %s for invoice %s", to_email, invoice_number)
-    return True
+def send_invoice_notification(to_email, invoice_number, total_amount, due_date):
+    return deliver(to_email, f'Brightloop invoice {invoice_number}', f"Your invoice {invoice_number} totals {format_inr(total_amount)} (INR). Payment is due {due_date}. Open your Brightloop customer portal to view your invoice.")

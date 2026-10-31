@@ -1,12 +1,13 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from app.database import get_db
 from app.models.payment import Payment, PaymentMethod, PaymentStatus
 from app.models.invoice import Invoice
 from app.models.user import User, UserRole
 from app.schemas.payment import PaymentCreate, PaymentResponse
 from app.services.billing_service import record_payment
+from app.utils.money import format_inr
 from app.dependencies import (
     get_current_active_user,
     PaginationParams,
@@ -28,7 +29,7 @@ def list_payments(
     List payments with pagination and filters.
     Customers can only inspect payments against their invoices.
     """
-    query = db.query(Payment).join(Invoice)
+    query = db.query(Payment).options(selectinload(Payment.invoice).selectinload(Invoice.customer)).join(Invoice)
 
     if current_user.role == UserRole.customer:
         query = query.filter(Invoice.customer_id == current_user.id)
@@ -67,14 +68,14 @@ def make_payment(
     Supports partial payments and automatically marks invoice paid once balance is cleared.
     """
     payment, invoice, amount_due = record_payment(db, payment_in, current_user)
-    
+
     log_activity(
         db,
         action="payment_recorded",
         entity_type="payment",
         entity_id=payment.id,
         user_id=current_user.id,
-        details=f"Payment {payment.payment_number} (${payment.amount:.2f}) recorded for {invoice.invoice_number}. Remaining due: ${amount_due:.2f}"
+        details=f"Payment {payment.payment_number} ({format_inr(payment.amount)}) recorded for {invoice.invoice_number}. Remaining due: {format_inr(amount_due)}"
     )
 
     resp = PaymentResponse.model_validate(payment)

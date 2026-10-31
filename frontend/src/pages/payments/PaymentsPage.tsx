@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { CreditCard, DollarSign, Calendar, TrendingUp, CheckCircle2 } from 'lucide-react';
+import { CreditCard, IndianRupee, TrendingUp, CheckCircle2 } from 'lucide-react';
 import { paymentsApi } from '../../api/payments';
 import { invoicesApi } from '../../api/invoices';
 import { PaymentRecord } from '../../types';
@@ -8,15 +8,19 @@ import { DataTable, Column } from '../../components/ui/DataTable';
 import { StatCard } from '../../components/ui/StatCard';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { Select } from '../../components/ui/Select';
+import { Input } from '../../components/ui/Input';
+import { Button } from '../../components/ui/Button';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 
 export const PaymentsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   const { data: payments = [], isLoading: paymentsLoading } = useQuery({
-    queryKey: ['payments', methodFilter, search],
-    queryFn: () => paymentsApi.getPayments({ method: methodFilter, search }),
+    queryKey: ['payments', methodFilter, search, startDate, endDate],
+    queryFn: () => paymentsApi.getPayments({ method: methodFilter, search, startDate, endDate }),
   });
 
   const { data: invoices = [] } = useQuery({
@@ -27,9 +31,11 @@ export const PaymentsPage: React.FC = () => {
   // Calculate summary metrics
   const totalReceived = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
   const thisMonthReceived = payments
-    .filter((p) => p.payment_date?.startsWith('2026-03') || p.payment_date?.startsWith('2026-04'))
+    .filter((p) => p.payment_date?.startsWith(new Date().toISOString().slice(0, 7)))
     .reduce((acc, p) => acc + (p.amount || 0), 0);
-  const totalOutstanding = invoices.reduce((acc, inv) => acc + (inv.balance_due || 0), 0);
+  const totalOutstanding = invoices
+    .filter((i) => ['confirmed', 'overdue'].includes(i.status))
+    .reduce((acc, inv) => acc + (inv.balance_due || 0), 0);
 
   const columns: Column<PaymentRecord>[] = [
     {
@@ -37,9 +43,7 @@ export const PaymentsPage: React.FC = () => {
       header: 'Invoice #',
       sortable: true,
       render: (p) => (
-        <span className="font-bold text-slate-900 dark:text-white font-mono">
-          {p.invoice_number}
-        </span>
+        <span className="font-semibold text-slate-900 font-mono">{p.invoice_number}</span>
       ),
     },
     {
@@ -47,7 +51,7 @@ export const PaymentsPage: React.FC = () => {
       header: 'Customer',
       sortable: true,
       render: (p) => (
-        <span className="font-semibold text-slate-800 dark:text-slate-200">
+        <span className="font-semibold text-slate-800 ">
           {p.customer_name || 'Enterprise Account'}
         </span>
       ),
@@ -58,9 +62,7 @@ export const PaymentsPage: React.FC = () => {
       sortable: true,
       align: 'right',
       render: (p) => (
-        <span className="font-black text-emerald-600 dark:text-emerald-400">
-          {formatCurrency(p.amount)}
-        </span>
+        <span className="font-semibold text-emerald-600 ">{formatCurrency(p.amount)}</span>
       ),
     },
     {
@@ -68,7 +70,7 @@ export const PaymentsPage: React.FC = () => {
       header: 'Method',
       sortable: true,
       render: (p) => (
-        <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 uppercase">
+        <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-50 text-indigo-600 uppercase">
           {p.payment_method.replace('_', ' ')}
         </span>
       ),
@@ -77,7 +79,9 @@ export const PaymentsPage: React.FC = () => {
       key: 'payment_date',
       header: 'Date & Time',
       sortable: true,
-      render: (p) => <span className="text-xs text-slate-500">{formatDateTime(p.payment_date)}</span>,
+      render: (p) => (
+        <span className="text-xs text-slate-500">{formatDateTime(p.payment_date)}</span>
+      ),
     },
     {
       key: 'reference_number',
@@ -91,7 +95,7 @@ export const PaymentsPage: React.FC = () => {
       header: 'Status',
       align: 'center',
       render: () => (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 ">
           <CheckCircle2 className="w-3.5 h-3.5" />
           <span>Settled</span>
         </span>
@@ -103,10 +107,10 @@ export const PaymentsPage: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900 ">
           Payment Transactions
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+        <p className="text-sm text-slate-500 mt-1">
           Settlement records, incoming customer wires, and payment gateways.
         </p>
       </div>
@@ -116,13 +120,12 @@ export const PaymentsPage: React.FC = () => {
         <StatCard
           label="Total Received (All-Time)"
           value={formatCurrency(totalReceived)}
-          icon={<DollarSign className="w-6 h-6" />}
+          icon={<IndianRupee className="w-6 h-6" />}
           iconColor="emerald"
         />
         <StatCard
           label="Collected This Cycle"
           value={formatCurrency(thisMonthReceived)}
-          change={12.4}
           changeLabel="vs last month"
           icon={<TrendingUp className="w-6 h-6" />}
           iconColor="indigo"
@@ -136,7 +139,7 @@ export const PaymentsPage: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 glass-card p-4 rounded-2xl">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 glass-card p-4 rounded-lg">
         <SearchBar
           value={search}
           onChange={setSearch}
@@ -153,8 +156,8 @@ export const PaymentsPage: React.FC = () => {
               { value: 'all', label: 'All Methods' },
               { value: 'credit_card', label: 'Credit Card' },
               { value: 'bank_transfer', label: 'Bank Transfer' },
-              { value: 'stripe', label: 'Stripe' },
-              { value: 'paypal', label: 'PayPal' },
+
+              { value: 'upi', label: 'UPI' },
             ]}
             value={methodFilter}
             onChange={(e) => setMethodFilter(e.target.value)}
@@ -164,6 +167,37 @@ export const PaymentsPage: React.FC = () => {
       </div>
 
       {/* Payments DataTable */}
+      <div className="panel p-4 flex flex-wrap gap-4 items-end">
+        <div className="min-w-[150px] flex-1">
+          <Input
+            label="Payments from"
+            type="date"
+            max={endDate || undefined}
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </div>
+        <div className="min-w-[150px] flex-1">
+          <Input
+            label="Payments until"
+            type="date"
+            min={startDate || undefined}
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+        </div>
+        {(startDate || endDate) && (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setStartDate('');
+              setEndDate('');
+            }}
+          >
+            Clear dates
+          </Button>
+        )}
+      </div>
       <DataTable
         columns={columns}
         data={payments}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { FileText, Zap, Eye, Calendar, DollarSign } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { FileText, Zap, Eye, Calendar } from 'lucide-react';
 import { invoicesApi } from '../../api/invoices';
 import { Invoice } from '../../types';
 import { DataTable, Column } from '../../components/ui/DataTable';
@@ -10,30 +10,17 @@ import { Button } from '../../components/ui/Button';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { Select } from '../../components/ui/Select';
 import { formatCurrency, formatDate } from '../../utils/formatters';
-import { showToast } from '../../components/ui/Toast';
 
 export const InvoicesPage: React.FC = () => {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const [params] = useSearchParams();
 
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(params.get('status') || 'all');
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ['invoices', statusFilter, search],
     queryFn: () => invoicesApi.getInvoices({ status: statusFilter, search }),
-  });
-
-  const generateMutation = useMutation({
-    mutationFn: () => invoicesApi.generateInvoices(),
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
-      showToast.success(result.message);
-    },
-    onError: (err: any) => {
-      showToast.error(err?.message || 'Failed to generate recurring invoices');
-    },
   });
 
   const columns: Column<Invoice>[] = [
@@ -43,11 +30,11 @@ export const InvoicesPage: React.FC = () => {
       sortable: true,
       render: (inv) => (
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0">
             <FileText className="w-4 h-4" />
           </div>
           <div>
-            <span className="font-bold text-slate-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400">
+            <span className="font-semibold text-slate-900 hover:text-indigo-600 ">
               {inv.invoice_number}
             </span>
           </div>
@@ -60,7 +47,7 @@ export const InvoicesPage: React.FC = () => {
       sortable: true,
       render: (inv) => (
         <div>
-          <span className="font-semibold text-slate-900 dark:text-slate-100">{inv.customer_name}</span>
+          <span className="font-semibold text-slate-900 ">{inv.customer_name}</span>
           <span className="block text-xs text-slate-400">{inv.customer_email}</span>
         </div>
       ),
@@ -70,7 +57,7 @@ export const InvoicesPage: React.FC = () => {
       header: 'Subscription',
       sortable: true,
       render: (inv) => (
-        <span className="text-xs font-mono text-indigo-600 dark:text-indigo-400">
+        <span className="text-xs font-mono text-indigo-600 ">
           {inv.subscription_number || 'Direct Order'}
         </span>
       ),
@@ -106,9 +93,7 @@ export const InvoicesPage: React.FC = () => {
       align: 'right',
       render: (inv) => (
         <div>
-          <span className="font-bold text-slate-900 dark:text-white">
-            {formatCurrency(inv.total_amount)}
-          </span>
+          <span className="font-semibold text-slate-900 ">{formatCurrency(inv.total_amount)}</span>
           {inv.balance_due > 0 && inv.status !== 'paid' && (
             <span className="block text-[11px] text-rose-500 font-medium">
               Due: {formatCurrency(inv.balance_due)}
@@ -126,7 +111,7 @@ export const InvoicesPage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate(`/invoices/${inv.id}`)}
-            className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
             title="View Invoice Details"
           >
             <Eye className="w-4 h-4" />
@@ -141,10 +126,10 @@ export const InvoicesPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900 ">
             Invoices & Billing
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-slate-500 mt-1">
             Accounts receivable, recurring billing runs, and payment collection.
           </p>
         </div>
@@ -152,15 +137,14 @@ export const InvoicesPage: React.FC = () => {
         <Button
           variant="primary"
           leftIcon={<Zap className="w-4 h-4" />}
-          onClick={() => generateMutation.mutate()}
-          isLoading={generateMutation.isPending}
+          onClick={() => navigate('/billing')}
         >
-          Generate Invoices
+          Review billing run
         </Button>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 glass-card p-4 rounded-2xl">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 glass-card p-4 rounded-lg">
         <SearchBar
           value={search}
           onChange={setSearch}

@@ -1,4 +1,7 @@
+import { z } from 'zod';
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { productsApi } from '../../api/products';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { discountSchema, DiscountFormData } from '../../utils/validators';
@@ -24,6 +27,10 @@ export const DiscountFormModal: React.FC<DiscountFormModalProps> = ({
   isLoading = false,
 }) => {
   const isEditing = !!discount;
+  const { data: products = [] } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => productsApi.getProducts(),
+  });
 
   const todayStr = new Date().toISOString().split('T')[0];
   const nextMonthStr = new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0];
@@ -32,8 +39,9 @@ export const DiscountFormModal: React.FC<DiscountFormModalProps> = ({
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
-  } = useForm<DiscountFormData>({
+  } = useForm<z.input<typeof discountSchema>, unknown, DiscountFormData>({
     resolver: zodResolver(discountSchema),
     defaultValues: {
       name: discount?.name || '',
@@ -56,13 +64,19 @@ export const DiscountFormModal: React.FC<DiscountFormModalProps> = ({
         type: discount.type,
         value: discount.value,
         min_purchase: discount.min_purchase,
-        start_date: discount.start_date,
-        end_date: discount.end_date,
+        min_quantity: discount.min_quantity || 1,
+        applies_to: (discount.applies_to as 'subscription' | 'product') || 'subscription',
+        product_id: discount.product_id ? String(discount.product_id) : '',
+        start_date: discount.start_date?.slice(0, 10),
+        end_date: discount.end_date?.slice(0, 10) || '',
         max_uses: discount.max_uses || 100,
         status: discount.status,
       });
     } else {
       reset({
+        min_quantity: 1,
+        applies_to: 'subscription',
+        product_id: '',
         name: '',
         code: '',
         type: 'percentage',
@@ -96,11 +110,7 @@ export const DiscountFormModal: React.FC<DiscountFormModalProps> = ({
           <Button variant="ghost" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
-          <Button
-            variant="primary"
-            onClick={handleSubmit(handleFormSubmit)}
-            isLoading={isLoading}
-          >
+          <Button variant="primary" onClick={handleSubmit(handleFormSubmit)} isLoading={isLoading}>
             {isEditing ? 'Save Discount' : 'Create Discount'}
           </Button>
         </>
@@ -118,7 +128,7 @@ export const DiscountFormModal: React.FC<DiscountFormModalProps> = ({
           <Input
             label="Coupon Code"
             placeholder="e.g. EARLY20"
-            className="uppercase font-mono font-bold"
+            className="uppercase font-mono font-semibold"
             error={errors.code?.message}
             {...register('code')}
           />
@@ -129,7 +139,7 @@ export const DiscountFormModal: React.FC<DiscountFormModalProps> = ({
             label="Discount Type"
             options={[
               { value: 'percentage', label: 'Percentage (%)' },
-              { value: 'fixed', label: 'Fixed Amount ($)' },
+              { value: 'fixed', label: 'Fixed Amount (₹)' },
             ]}
             error={errors.type?.message}
             {...register('type')}
@@ -145,7 +155,7 @@ export const DiscountFormModal: React.FC<DiscountFormModalProps> = ({
           />
 
           <Input
-            label="Min Purchase ($)"
+            label="Min Purchase (₹)"
             type="number"
             step="0.01"
             placeholder="0"
@@ -178,6 +188,34 @@ export const DiscountFormModal: React.FC<DiscountFormModalProps> = ({
           />
         </div>
 
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Input
+            label="Minimum quantity"
+            type="number"
+            min={1}
+            error={errors.min_quantity?.message}
+            {...register('min_quantity')}
+          />
+          <Select
+            label="Applies to"
+            options={[
+              { value: 'subscription', label: 'Whole subscription' },
+              { value: 'product', label: 'Specific product' },
+            ]}
+            {...register('applies_to')}
+          />
+        </div>
+        {watch('applies_to') === 'product' && (
+          <Select
+            label="Eligible product"
+            options={[
+              { value: '', label: 'Select a product' },
+              ...products.map((p) => ({ value: p.id, label: p.name })),
+            ]}
+            error={errors.product_id?.message}
+            {...register('product_id')}
+          />
+        )}
         <Select
           label="Status"
           options={[

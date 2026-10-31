@@ -1,4 +1,4 @@
-# Python
+# ────── Python ──────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -12,28 +12,36 @@ dist/
 build/
 *.db
 *.sqlite3
+backend/.brightloop-secret
+# Local password-reset and invoice email messages can contain private tokens.
+backend/outbox/
 
-# Node
+# ────── Node ──────
 node_modules/
 dist/
 .vite/
+.vite-temp/
 
-# Environment
+# ────── Environment ──────
 .env
 .env.local
 .env.*.local
 
-# IDE
+# ────── IDE ──────
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
+# ────── OS ──────
 .DS_Store
 Thumbs.db
 
-# Logs
+# ────── Logs ──────
 *.log
 npm-debug.log*
+
+# ────── Teammate fix files (not for repo) ──────
+_teammate_fixes/
+artifacts/

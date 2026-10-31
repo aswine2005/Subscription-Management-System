@@ -1,215 +1,57 @@
-from datetime import datetime, timedelta
-from typing import Dict, List
-from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
-from app.models.subscription import Subscription, SubscriptionStatus
+from datetime import datetime
+from collections import defaultdict
+from sqlalchemy.orm import Session, selectinload
+from app.models.subscription import Subscription, SubscriptionStatus, SubscriptionLine
 from app.models.plan import Plan, BillingCycle
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.payment import Payment, PaymentStatus
 from app.models.user import User, UserRole
 from app.models.discount import ActivityLog
-from app.schemas.dashboard import (
-    DashboardSummary,
-    OverdueInfo,
-    MonthlyRevenue,
-    PlanSubscriptionCount,
-    TopCustomer,
-)
+from app.schemas.dashboard import DashboardSummary, OverdueInfo, MonthlyRevenue, PlanSubscriptionCount, TopCustomer
 from app.schemas.discount import ActivityLogResponse
-
-
-def calculate_mrr(db: Session) -> float:
-    """Calculate Monthly Recurring Revenue based on all currently active subscriptions."""
-    active_subs = (
-        db.query(Subscription)
-        .join(Plan)
-        .filter(Subscription.status == SubscriptionStatus.active)
-        .all()
-    )
-    
-    mrr = 0.0
-    for sub in active_subs:
-        # Calculate monthly equivalent based on plan price or subscription lines total
-        # We compute lines subtotal or plan price
-        lines_total = sum(l.total for l in sub.lines) if sub.lines else sub.plan.price
-        cycle = sub.plan.billing_cycle
-        
-        if cycle == BillingCycle.daily:
-            monthly_equiv = lines_total * 30.0
-        elif cycle == BillingCycle.weekly:
-            monthly_equiv = lines_total * 4.333333
-        elif cycle == BillingCycle.monthly:
-            monthly_equiv = lines_total * 1.0
-        elif cycle == BillingCycle.yearly:
-            monthly_equiv = lines_total / 12.0
-        else:
-            monthly_equiv = lines_total
-
-        mrr += monthly_equiv
-
-    return round(mrr, 2)
-
 
 def get_dashboard_summary(db: Session) -> DashboardSummary:
     now = datetime.utcnow()
-
-    # 1. Active Subscriptions Count
-    active_count = db.query(Subscription).filter(Subscription.status == SubscriptionStatus.active).count()
-    total_subscriptions = db.query(Subscription).count()
-    closed_subscriptions = db.query(Subscription).filter(Subscription.status == SubscriptionStatus.closed).count()
-
-    # 2. Total Revenue (sum of completed payments)
-    total_revenue = db.query(func.coalesce(func.sum(Payment.amount), 0.0)).filter(
-        Payment.status == PaymentStatus.completed
-    ).scalar() or 0.0
-
-    # 3. Outstanding Revenue & Overdue Invoices
-    # Update status for overdue invoices where due_date < now and status is confirmed
-    overdue_candidates = db.query(Invoice).filter(
-        Invoice.status == InvoiceStatus.confirmed,
-        Invoice.due_date < now
-    ).all()
-    for inv in overdue_candidates:
-        inv.status = InvoiceStatus.overdue
-    if overdue_candidates:
-        db.commit()
-
-    overdue_invoices_query = db.query(Invoice).filter(Invoice.status == InvoiceStatus.overdue)
-    overdue_count = overdue_invoices_query.count()
-    overdue_total = db.query(func.coalesce(func.sum(Invoice.total), 0.0)).filter(
-        Invoice.status == InvoiceStatus.overdue
-    ).scalar() or 0.0
-
-    # Sum of all uncollected amounts for confirmed and overdue invoices
-    unpaid_invoices = db.query(Invoice).filter(
-        Invoice.status.in_([InvoiceStatus.confirmed, InvoiceStatus.overdue])
-    ).all()
-    
-    outstanding_revenue = 0.0
-    for inv in unpaid_invoices:
-        paid_for_inv = db.query(func.coalesce(func.sum(Payment.amount), 0.0)).filter(
-            Payment.invoice_id == inv.id,
-            Payment.status == PaymentStatus.completed
-        ).scalar() or 0.0
-        outstanding_revenue += max(0.0, inv.total - paid_for_inv)
-
-    # 4. MRR & ARR
-    mrr = calculate_mrr(db)
-    arr = round(mrr * 12.0, 2)
-
-    # 5. Churn Rate
-    churn_rate = round((closed_subscriptions / total_subscriptions * 100.0), 2) if total_subscriptions > 0 else 0.0
-
-    # 6. Revenue by Month (last 12 months)
-    # Generate array of last 12 months YYYY-MM
-    revenue_by_month: List[MonthlyRevenue] = []
-    # Build a calendar of 12 months
-    current_year = now.year
-    current_month = now.month
+    subs = db.query(Subscription).options(selectinload(Subscription.lines), selectinload(Subscription.plan)).all()
+    invoices = db.query(Invoice).options(selectinload(Invoice.payments)).all()
+    payments = db.query(Payment).filter(Payment.status == PaymentStatus.completed).all()
+    customers = db.query(User).filter(User.role == UserRole.customer).all()
+    plans = db.query(Plan).all()
+    statuses = defaultdict(int)
+    by_plan, by_customer = defaultdict(int), defaultdict(int)
+    mrr = 0
+    factors = {BillingCycle.daily: 365.25 / 12, BillingCycle.weekly: 52 / 12, BillingCycle.monthly: 1, BillingCycle.yearly: 1 / 12}
+    for sub in subs:
+        statuses[sub.status.value] += 1
+        by_plan[sub.plan_id] += 1
+        if sub.status == SubscriptionStatus.active:
+            mrr += sum(l.subtotal for l in sub.lines) * factors[sub.plan.billing_cycle]
+            by_customer[sub.customer_id] += 1
+    outstanding, overdue_amount, overdue_count = 0, 0, 0
+    invoice_customers = {i.id: i.customer_id for i in invoices}
+    for inv in invoices:
+        if inv.status not in (InvoiceStatus.confirmed, InvoiceStatus.overdue):
+            continue
+        balance = max(0, inv.total - sum(p.amount for p in inv.payments if p.status == PaymentStatus.completed))
+        outstanding += balance
+        if balance > 0 and inv.due_date < now:
+            overdue_amount += balance
+            overdue_count += 1
+    customer_revenue, monthly = defaultdict(float), defaultdict(float)
+    for payment in payments:
+        customer_revenue[invoice_customers[payment.invoice_id]] += payment.amount
+        monthly[payment.payment_date.strftime("%Y-%m")] += payment.amount
     months = []
     for i in range(11, -1, -1):
-        # Go back i months
-        month_index = current_month - i
-        year = current_year
-        while month_index <= 0:
-            month_index += 12
-            year -= 1
-        months.append((year, month_index, f"{year:04d}-{month_index:02d}"))
-
-    for yr, mn, month_str in months:
-        # Start and end of month
-        start_m = datetime(yr, mn, 1)
-        if mn == 12:
-            end_m = datetime(yr + 1, 1, 1)
-        else:
-            end_m = datetime(yr, mn + 1, 1)
-
-        m_rev = db.query(func.coalesce(func.sum(Payment.amount), 0.0)).filter(
-            Payment.status == PaymentStatus.completed,
-            Payment.payment_date >= start_m,
-            Payment.payment_date < end_m
-        ).scalar() or 0.0
-        revenue_by_month.append(MonthlyRevenue(month=month_str, revenue=round(m_rev, 2)))
-
-    # 7. Subscriptions by Status
-    status_counts: Dict[str, int] = {}
-    for st in SubscriptionStatus:
-        cnt = db.query(Subscription).filter(Subscription.status == st).count()
-        status_counts[st.value] = cnt
-
-    # 8. Subscriptions by Plan
-    plans = db.query(Plan).all()
-    subscriptions_by_plan: List[PlanSubscriptionCount] = []
-    for p in plans:
-        cnt = db.query(Subscription).filter(Subscription.plan_id == p.id).count()
-        subscriptions_by_plan.append(PlanSubscriptionCount(
-            plan_id=p.id,
-            plan_name=p.name,
-            count=cnt
-        ))
-    subscriptions_by_plan.sort(key=lambda x: x.count, reverse=True)
-
-    # 9. Top Customers by Revenue
-    customers = db.query(User).filter(User.role == UserRole.customer).all()
-    top_customers_list: List[TopCustomer] = []
-    for cust in customers:
-        # Calculate customer revenue from paid payments through invoices
-        cust_rev = db.query(func.coalesce(func.sum(Payment.amount), 0.0)).join(Invoice).filter(
-            Invoice.customer_id == cust.id,
-            Payment.status == PaymentStatus.completed
-        ).scalar() or 0.0
-
-        active_subs_count = db.query(Subscription).filter(
-            Subscription.customer_id == cust.id,
-            Subscription.status == SubscriptionStatus.active
-        ).count()
-
-        top_customers_list.append(TopCustomer(
-            customer_id=cust.id,
-            name=cust.full_name,
-            email=cust.email,
-            company_name=cust.company_name,
-            revenue=round(cust_rev, 2),
-            active_subscriptions=active_subs_count
-        ))
-    top_customers_list.sort(key=lambda x: x.revenue, reverse=True)
-    top_customers = top_customers_list[:10]
-
-    # 10. Recent Activities (last 20 actions)
-    activities = (
-        db.query(ActivityLog)
-        .order_by(desc(ActivityLog.created_at))
-        .limit(20)
-        .all()
-    )
-    recent_activities: List[ActivityLogResponse] = []
-    for act in activities:
-        user_name = act.user.full_name if act.user else "System"
-        recent_activities.append(ActivityLogResponse(
-            id=act.id,
-            user_id=act.user_id,
-            user_name=user_name,
-            action=act.action,
-            entity_type=act.entity_type,
-            entity_id=act.entity_id,
-            details=act.details,
-            created_at=act.created_at
-        ))
-
-    return DashboardSummary(
-        active_subscriptions=active_count,
-        total_revenue=round(total_revenue, 2),
-        outstanding_revenue=round(outstanding_revenue, 2),
-        mrr=mrr,
-        arr=arr,
-        churn_rate=churn_rate,
-        overdue_invoices=OverdueInfo(
-            count=overdue_count,
-            total_amount=round(overdue_total, 2)
-        ),
-        revenue_by_month=revenue_by_month,
-        subscriptions_by_status=status_counts,
-        subscriptions_by_plan=subscriptions_by_plan,
-        top_customers=top_customers,
-        recent_activities=recent_activities
-    )
+        year, month = divmod(now.year * 12 + now.month - 1 - i, 12)
+        label = f"{year:04d}-{month+1:02d}"
+        months.append(MonthlyRevenue(month=label, revenue=round(monthly[label], 2)))
+    top = [TopCustomer(customer_id=c.id, name=c.full_name, email=c.email, company_name=c.company_name, revenue=round(customer_revenue[c.id],2), active_subscriptions=by_customer[c.id]) for c in customers]
+    activities = db.query(ActivityLog).options(selectinload(ActivityLog.user)).order_by(ActivityLog.created_at.desc(), ActivityLog.id.desc()).limit(12).all()
+    return DashboardSummary(active_subscriptions=statuses['active'], total_revenue=round(sum(p.amount for p in payments),2),
+        outstanding_revenue=round(outstanding,2), mrr=round(mrr,2), arr=round(mrr*10,2),
+        overdue_invoices=OverdueInfo(count=overdue_count, total_amount=round(overdue_amount,2)), revenue_by_month=months,
+        subscriptions_by_status={s.value: statuses[s.value] for s in SubscriptionStatus},
+        subscriptions_by_plan=sorted([PlanSubscriptionCount(plan_id=p.id, plan_name=p.name, count=by_plan[p.id]) for p in plans], key=lambda p: p.count, reverse=True),
+        top_customers=sorted(top, key=lambda c: c.revenue, reverse=True)[:6],
+        recent_activities=[ActivityLogResponse(id=a.id, user_id=a.user_id, user_name=a.user.full_name if a.user else 'System', action=a.action, entity_type=a.entity_type, entity_id=a.entity_id, details=a.details, created_at=a.created_at) for a in activities])

@@ -2,7 +2,9 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.discount import Discount, TaxRule
+from app.models.discount import Discount, TaxRule, DiscountAppliesTo
+from app.models.product import Product
+from app.utils.money import format_inr
 from app.models.user import User
 from app.schemas.discount import (
     DiscountCreate,
@@ -21,6 +23,14 @@ from app.dependencies import (
 )
 
 router = APIRouter(prefix="/discounts", tags=["Discounts & Tax Rules"])
+
+
+def validate_discount_product(db, rule):
+    if rule.applies_to == DiscountAppliesTo.product:
+        product = db.get(Product, rule.product_id)
+        if not product or not product.is_active:
+            raise HTTPException(status_code=400, detail="Select an available product for this discount.")
+
 
 
 # --- Tax Rules Endpoints (placed before dynamic /{id} routes) ---
@@ -160,6 +170,7 @@ def create_discount(
         if existing:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Discount code already exists")
 
+    validate_discount_product(db, discount_in)
     discount = Discount(
         name=discount_in.name.strip(),
         code=discount_in.code.strip().upper() if discount_in.code else None,
@@ -184,7 +195,7 @@ def create_discount(
         entity_type="discount",
         entity_id=discount.id,
         user_id=admin.id,
-        details=f"Admin created discount: {discount.name} ({discount.value} {discount.type.value})"
+        details=f"Admin created discount: {discount.name} ({format_inr(discount.value) if discount.type.value == 'fixed' else str(discount.value) + '%'})"
     )
     return discount
 
@@ -214,9 +225,22 @@ def update_discount(
     if not discount:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Discount not found")
 
+    from app.schemas.discount import DiscountBase
+    from pydantic import ValidationError
+    merged = {key: getattr(discount, key, field.default) for key, field in DiscountBase.model_fields.items()}
+    merged.update(discount_update.model_dump(exclude_unset=True))
+    try:
+        combined = DiscountBase.model_validate(merged)
+        validate_discount_product(db, combined)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
     if discount_update.name is not None:
         discount.name = discount_update.name.strip()
     if discount_update.code is not None:
+        existing = db.query(Discount).filter(Discount.code == discount_update.code.upper(), Discount.id != discount.id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Discount code already exists")
         discount.code = discount_update.code.strip().upper()
     if discount_update.type is not None:
         discount.type = discount_update.type
@@ -228,9 +252,9 @@ def update_discount(
         discount.min_quantity = discount_update.min_quantity
     if discount_update.start_date is not None:
         discount.start_date = discount_update.start_date
-    if discount_update.end_date is not None:
+    if "end_date" in discount_update.model_fields_set:
         discount.end_date = discount_update.end_date
-    if discount_update.max_uses is not None:
+    if "max_uses" in discount_update.model_fields_set:
         discount.max_uses = discount_update.max_uses
     if discount_update.applies_to is not None:
         discount.applies_to = discount_update.applies_to

@@ -1,7 +1,8 @@
 from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import or_, and_
 from app.database import get_db
 from app.models.invoice import Invoice, InvoiceLine, InvoiceStatus
 from app.models.user import User, UserRole
@@ -42,7 +43,7 @@ def list_invoices(
     Customers can only view their own invoices.
     Staff and Admins can query all invoices with filters.
     """
-    query = db.query(Invoice)
+    query = db.query(Invoice).options(selectinload(Invoice.lines).selectinload(InvoiceLine.product), selectinload(Invoice.lines).selectinload(InvoiceLine.variant), selectinload(Invoice.customer), selectinload(Invoice.payments), selectinload(Invoice.subscription))
 
     if current_user.role == UserRole.customer:
         query = query.filter(Invoice.customer_id == current_user.id)
@@ -50,7 +51,9 @@ def list_invoices(
         if customer_id:
             query = query.filter(Invoice.customer_id == customer_id)
 
-    if status:
+    if status == InvoiceStatus.overdue:
+        query = query.filter(or_(Invoice.status == InvoiceStatus.overdue, and_(Invoice.status == InvoiceStatus.confirmed, Invoice.due_date < datetime.utcnow())))
+    elif status:
         query = query.filter(Invoice.status == status)
     if subscription_id:
         query = query.filter(Invoice.subscription_id == subscription_id)
@@ -63,9 +66,9 @@ def list_invoices(
     )
 
     for inv in invoices:
-        paid, due = get_invoice_balance(db, inv.id)
+        paid = round(sum(p.amount for p in inv.payments if p.status.value == "completed"), 2)
         inv.amount_paid = paid
-        inv.amount_due = due
+        inv.amount_due = max(0, round(inv.total - paid, 2))
 
     return invoices
 
@@ -93,6 +96,12 @@ def create_invoice_from_sub(
     return inv
 
 
+@router.get("/billing-preview")
+def billing_preview(db: Session = Depends(get_db), staff_user: User = Depends(require_staff_or_admin)):
+    from app.services.billing_service import preview_billing
+    return preview_billing(db)
+
+
 @router.post("/bulk-generate", response_model=BulkInvoiceResponse)
 def trigger_bulk_invoicing(
     payload: Optional[BulkInvoiceRequest] = None,
@@ -108,9 +117,9 @@ def trigger_bulk_invoicing(
 
     resp_invoices = []
     for inv in invoices:
-        paid, due = get_invoice_balance(db, inv.id)
+        paid = round(sum(p.amount for p in inv.payments if p.status.value == "completed"), 2)
         inv.amount_paid = paid
-        inv.amount_due = due
+        inv.amount_due = max(0, round(inv.total - paid, 2))
         resp_invoices.append(inv)
 
     log_activity(
@@ -140,6 +149,26 @@ def create_manual_invoice(
     if not customer:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
 
+    from app.models.product import Product, ProductVariant
+    from app.models.subscription import Subscription
+    from app.services.locking import lock_write
+    lock_write(db)
+    if customer.role != UserRole.customer:
+        raise HTTPException(status_code=400, detail="Select a customer account.")
+    if invoice_in.due_date < invoice_in.issue_date:
+        raise HTTPException(status_code=400, detail="Due date must be on or after the invoice date.")
+    if invoice_in.subscription_id:
+        sub = db.query(Subscription).filter(Subscription.id == invoice_in.subscription_id).first()
+        if not sub or sub.customer_id != customer.id:
+            raise HTTPException(status_code=400, detail="The subscription does not belong to this customer.")
+    for line in invoice_in.lines:
+        product = db.get(Product, line.product_id)
+        if not product or not product.is_active:
+            raise HTTPException(status_code=400, detail="An invoice product is unavailable.")
+        if line.variant_id:
+            variant = db.get(ProductVariant, line.variant_id)
+            if not variant or variant.product_id != product.id:
+                raise HTTPException(status_code=400, detail="Invalid product variant.")
     subtotal = 0.0
     tax_total = 0.0
     for line in invoice_in.lines:
@@ -157,7 +186,7 @@ def create_manual_invoice(
         customer_id=invoice_in.customer_id,
         issue_date=invoice_in.issue_date or datetime.utcnow(),
         due_date=invoice_in.due_date,
-        status=InvoiceStatus.confirmed,
+        status=InvoiceStatus.draft,
         subtotal=subtotal,
         tax_amount=tax_total,
         discount_amount=0.0,
@@ -231,7 +260,13 @@ def update_invoice(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
 
     if inv_update.status is not None:
-        inv.status = inv_update.status
+        allowed = {InvoiceStatus.draft: {InvoiceStatus.confirmed, InvoiceStatus.cancelled}, InvoiceStatus.confirmed: {InvoiceStatus.cancelled}, InvoiceStatus.overdue: {InvoiceStatus.cancelled}}
+        if inv_update.status != inv.status and inv_update.status not in allowed.get(inv.status, set()):
+            raise HTTPException(status_code=400, detail="This invoice transition is not allowed. Paid status is set only by payments.")
+        paid, _ = get_invoice_balance(db, inv.id)
+        if inv_update.status == InvoiceStatus.cancelled and paid > 0:
+            raise HTTPException(status_code=400, detail="An invoice with payments cannot be cancelled.")
+        inv.status = InvoiceStatus.paid if inv_update.status == InvoiceStatus.confirmed and inv.total == 0 else inv_update.status
     if inv_update.due_date is not None:
         inv.due_date = inv_update.due_date
     if inv_update.notes is not None:
@@ -252,3 +287,14 @@ def update_invoice(
         details=f"Invoice {inv.invoice_number} updated"
     )
     return inv
+
+
+@router.post("/{invoice_id}/send")
+def send_invoice(invoice_id: int, db: Session = Depends(get_db), staff: User = Depends(require_staff_or_admin)):
+    inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not inv or inv.status in (InvoiceStatus.draft, InvoiceStatus.cancelled):
+        raise HTTPException(status_code=400, detail="Only issued invoices can be sent.")
+    from app.utils.email import send_invoice_notification
+    delivered = send_invoice_notification(inv.customer.email, inv.invoice_number, inv.total, inv.due_date.strftime("%Y-%m-%d"))
+    log_activity(db, "invoice_sent", "invoice", inv.id, staff.id, f"Invoice {inv.invoice_number} {'sent by SMTP' if delivered else 'saved to local outbox'}")
+    return {"message": "Invoice sent by email." if delivered else "Invoice saved to the local email outbox. SMTP is not configured."}

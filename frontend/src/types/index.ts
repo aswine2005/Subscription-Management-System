@@ -21,7 +21,7 @@ export interface ProductVariant {
   additional_price: number;
 }
 
-export type ProductType = 'service' | 'goods' | 'digital';
+export type ProductType = 'service' | 'software' | 'addon';
 
 export interface Product {
   id: string;
@@ -35,7 +35,7 @@ export interface Product {
   created_at?: string;
 }
 
-export type BillingCycle = 'monthly' | 'yearly' | 'weekly' | 'quarterly';
+export type BillingCycle = 'monthly' | 'yearly' | 'weekly' | 'daily';
 
 export interface Plan {
   id: string;
@@ -45,6 +45,8 @@ export interface Plan {
   billing_cycle: BillingCycle;
   price: number;
   min_qty: number;
+  available_from?: string;
+  available_to?: string;
   auto_close: boolean;
   allow_early_close: boolean;
   allow_pause: boolean;
@@ -55,12 +57,7 @@ export interface Plan {
 }
 
 export type SubscriptionStatus =
-  | 'draft'
-  | 'quotation'
-  | 'confirmed'
-  | 'active'
-  | 'paused'
-  | 'closed';
+  'draft' | 'quotation' | 'confirmed' | 'active' | 'paused' | 'closed';
 
 export interface SubscriptionLine {
   id?: string;
@@ -91,7 +88,12 @@ export interface Subscription {
   tax_amount: number;
   discount_amount: number;
   total_amount: number;
+  allow_pause?: boolean;
+  allow_renewal?: boolean;
+  allow_early_close?: boolean;
+  next_billing_date?: string;
   quotation_template?: string;
+  quotation_valid_until?: string;
   notes?: string;
   created_at?: string;
 }
@@ -133,7 +135,7 @@ export interface Invoice {
   created_at?: string;
 }
 
-export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'cash' | 'paypal' | 'stripe';
+export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'cash' | 'upi';
 
 export interface PaymentRecord {
   id: string;
@@ -159,6 +161,9 @@ export interface Discount {
   type: DiscountType;
   value: number;
   min_purchase: number;
+  min_quantity?: number;
+  applies_to?: string;
+  product_id?: string;
   start_date: string;
   end_date: string;
   max_uses?: number;
@@ -168,6 +173,10 @@ export interface Discount {
 }
 
 export interface DashboardSummary {
+  arr: number;
+  outstanding_revenue: number;
+  total_revenue: number;
+  overdue_amount: number;
   active_subscriptions: number;
   active_subscriptions_change: number;
   mrr: number;

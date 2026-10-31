@@ -1,12 +1,15 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import model_validator, BaseModel, ConfigDict, Field
+
+from app.schemas.base import ValidatedModel, CurrencyModel
+
 from app.models.discount import DiscountType, DiscountAppliesTo
 
 
 # Discount Schemas
-class DiscountBase(BaseModel):
-    name: str
+class DiscountBase(CurrencyModel):
+    name: str = Field(min_length=2, max_length=255)
     code: Optional[str] = None
     type: DiscountType
     value: float = Field(gt=0.0)
@@ -19,13 +22,23 @@ class DiscountBase(BaseModel):
     product_id: Optional[int] = None
     is_active: bool = True
 
+    @model_validator(mode="after")
+    def validate_rules(self):
+        if self.type.value == 'percentage' and self.value > 100:
+            raise ValueError('Percentage discounts cannot exceed 100%')
+        if self.end_date and self.end_date <= self.start_date:
+            raise ValueError('End date must be after start date')
+        if self.applies_to.value == 'product' and not self.product_id:
+            raise ValueError('Select a product for a product discount')
+        return self
+
 
 class DiscountCreate(DiscountBase):
     pass
 
 
-class DiscountUpdate(BaseModel):
-    name: Optional[str] = None
+class DiscountUpdate(ValidatedModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=255)
     code: Optional[str] = None
     type: Optional[DiscountType] = None
     value: Optional[float] = Field(default=None, gt=0.0)
@@ -49,9 +62,9 @@ class DiscountResponse(DiscountBase):
 
 
 # Tax Rule Schemas
-class TaxRuleBase(BaseModel):
-    name: str
-    rate: float = Field(ge=0.0)  # Percentage rate
+class TaxRuleBase(ValidatedModel):
+    name: str = Field(min_length=2, max_length=255)
+    rate: float = Field(ge=0.0, le=100.0)  # Percentage rate
     description: Optional[str] = None
     is_active: bool = True
 
@@ -60,9 +73,9 @@ class TaxRuleCreate(TaxRuleBase):
     pass
 
 
-class TaxRuleUpdate(BaseModel):
-    name: Optional[str] = None
-    rate: Optional[float] = Field(default=None, ge=0.0)
+class TaxRuleUpdate(ValidatedModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=255)
+    rate: Optional[float] = Field(default=None, ge=0.0, le=100.0)
     description: Optional[str] = None
     is_active: Optional[bool] = None
 
@@ -76,10 +89,10 @@ class TaxRuleResponse(TaxRuleBase):
 
 
 # Activity Log Schema
-class ActivityLogResponse(BaseModel):
+class ActivityLogResponse(ValidatedModel):
     id: int
     user_id: Optional[int] = None
-    user_name: Optional[str] = None
+    user_name: Optional[str] = Field(default=None, min_length=2, max_length=255)
     action: str
     entity_type: str
     entity_id: Optional[int] = None

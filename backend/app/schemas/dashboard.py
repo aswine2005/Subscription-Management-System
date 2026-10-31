@@ -1,40 +1,42 @@
 from typing import List, Dict, Optional
-from pydantic import BaseModel
+from pydantic import Field, BaseModel
+
+from app.schemas.base import ValidatedModel, CurrencyModel
+
 from app.schemas.discount import ActivityLogResponse
 
 
-class OverdueInfo(BaseModel):
+class OverdueInfo(ValidatedModel):
     count: int
     total_amount: float
 
 
-class MonthlyRevenue(BaseModel):
+class MonthlyRevenue(ValidatedModel):
     month: str
     revenue: float
 
 
-class PlanSubscriptionCount(BaseModel):
+class PlanSubscriptionCount(ValidatedModel):
     plan_id: int
-    plan_name: str
+    plan_name: str = Field(min_length=2, max_length=255)
     count: int
 
 
-class TopCustomer(BaseModel):
+class TopCustomer(ValidatedModel):
     customer_id: int
-    name: str
+    name: str = Field(min_length=2, max_length=255)
     email: str
-    company_name: Optional[str] = None
+    company_name: Optional[str] = Field(default=None, min_length=2, max_length=255)
     revenue: float
     active_subscriptions: int
 
 
-class DashboardSummary(BaseModel):
+class DashboardSummary(CurrencyModel):
     active_subscriptions: int
     total_revenue: float
     outstanding_revenue: float
     mrr: float
     arr: float
-    churn_rate: float
     overdue_invoices: OverdueInfo
     revenue_by_month: List[MonthlyRevenue]
     subscriptions_by_status: Dict[str, int]

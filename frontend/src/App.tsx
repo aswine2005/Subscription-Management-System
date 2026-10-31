@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { useAuth } from './hooks/useAuth';
@@ -11,33 +11,91 @@ import { Layout } from './components/layout/Layout';
 import { CustomerLayout } from './components/layout/CustomerLayout';
 
 // Auth Pages
-import { LoginPage } from './pages/auth/LoginPage';
-import { RegisterPage } from './pages/auth/RegisterPage';
-import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
+const LoginPage = lazy(() =>
+  import('./pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })),
+);
+const RegisterPage = lazy(() =>
+  import('./pages/auth/RegisterPage').then((m) => ({ default: m.RegisterPage })),
+);
+const ForgotPasswordPage = lazy(() =>
+  import('./pages/auth/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })),
+);
 
 // Admin / Staff Pages
-import { DashboardPage } from './pages/dashboard/DashboardPage';
-import { ProductsPage } from './pages/products/ProductsPage';
-import { PlansPage } from './pages/plans/PlansPage';
-import { SubscriptionsPage } from './pages/subscriptions/SubscriptionsPage';
-import { SubscriptionDetailPage } from './pages/subscriptions/SubscriptionDetailPage';
-import { InvoicesPage } from './pages/invoices/InvoicesPage';
-import { InvoiceDetailPage } from './pages/invoices/InvoiceDetailPage';
-import { PaymentsPage } from './pages/payments/PaymentsPage';
-import { DiscountsPage } from './pages/discounts/DiscountsPage';
-import { UsersPage } from './pages/users/UsersPage';
+import { showToast } from './components/ui/Toast';
+const RecoveryPage = lazy(() =>
+  import('./pages/recovery/RecoveryPage').then((m) => ({ default: m.RecoveryPage })),
+);
+const BillingPage = lazy(() =>
+  import('./pages/billing/BillingPage').then((m) => ({ default: m.BillingPage })),
+);
+const TaxesPage = lazy(() =>
+  import('./pages/settings/TaxesPage').then((m) => ({ default: m.TaxesPage })),
+);
+const TemplatesPage = lazy(() =>
+  import('./pages/settings/TemplatesPage').then((m) => ({ default: m.TemplatesPage })),
+);
+const DashboardPage = lazy(() =>
+  import('./pages/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+);
+const ProductsPage = lazy(() =>
+  import('./pages/products/ProductsPage').then((m) => ({ default: m.ProductsPage })),
+);
+const PlansPage = lazy(() =>
+  import('./pages/plans/PlansPage').then((m) => ({ default: m.PlansPage })),
+);
+const SubscriptionsPage = lazy(() =>
+  import('./pages/subscriptions/SubscriptionsPage').then((m) => ({ default: m.SubscriptionsPage })),
+);
+const SubscriptionDetailPage = lazy(() =>
+  import('./pages/subscriptions/SubscriptionDetailPage').then((m) => ({
+    default: m.SubscriptionDetailPage,
+  })),
+);
+const InvoicesPage = lazy(() =>
+  import('./pages/invoices/InvoicesPage').then((m) => ({ default: m.InvoicesPage })),
+);
+const InvoiceDetailPage = lazy(() =>
+  import('./pages/invoices/InvoiceDetailPage').then((m) => ({ default: m.InvoiceDetailPage })),
+);
+const PaymentsPage = lazy(() =>
+  import('./pages/payments/PaymentsPage').then((m) => ({ default: m.PaymentsPage })),
+);
+const DiscountsPage = lazy(() =>
+  import('./pages/discounts/DiscountsPage').then((m) => ({ default: m.DiscountsPage })),
+);
+const UsersPage = lazy(() =>
+  import('./pages/users/UsersPage').then((m) => ({ default: m.UsersPage })),
+);
 
 // Customer Pages
-import { CustomerDashboard } from './pages/customer/CustomerDashboard';
-import { CustomerSubscriptions } from './pages/customer/CustomerSubscriptions';
-import { CustomerInvoices } from './pages/customer/CustomerInvoices';
+const CustomerDashboard = lazy(() =>
+  import('./pages/customer/CustomerDashboard').then((m) => ({ default: m.CustomerDashboard })),
+);
+const CustomerSubscriptions = lazy(() =>
+  import('./pages/customer/CustomerSubscriptions').then((m) => ({
+    default: m.CustomerSubscriptions,
+  })),
+);
+const CustomerInvoices = lazy(() =>
+  import('./pages/customer/CustomerInvoices').then((m) => ({ default: m.CustomerInvoices })),
+);
 
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({ onError: (e) => showToast.error(e.message) }),
+  mutationCache: new MutationCache({
+    onError: (e, _v, _c, m) => {
+      if (!m.options.onError) showToast.error(e.message);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+    },
+  }),
   defaultOptions: {
     queries: {
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
       retry: 1,
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 20, // Keep financial data fresh.
     },
   },
 });
@@ -52,7 +110,7 @@ const ProtectedRoute: React.FC<{
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-700">
         <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
       </div>
     );
@@ -107,6 +165,7 @@ export const AppRoutes: React.FC = () => {
         }
       />
 
+      <Route path="/reset-password" element={<ForgotPasswordPage />} />
       {/* Auth Public Routes */}
       <Route
         path="/login"
@@ -142,6 +201,17 @@ export const AppRoutes: React.FC = () => {
         }
       >
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/billing" element={<BillingPage />} />
+        <Route path="/recovery" element={<RecoveryPage />} />
+        <Route path="/templates" element={<TemplatesPage />} />
+        <Route
+          path="/taxes"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <TaxesPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/products"
           element={
@@ -185,7 +255,7 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/portal"
         element={
-          <ProtectedRoute allowedRoles={['customer', 'admin', 'staff']}>
+          <ProtectedRoute allowedRoles={['customer']}>
             <CustomerLayout />
           </ProtectedRoute>
         }
@@ -193,6 +263,7 @@ export const AppRoutes: React.FC = () => {
         <Route index element={<CustomerDashboard />} />
         <Route path="subscriptions" element={<CustomerSubscriptions />} />
         <Route path="invoices" element={<CustomerInvoices />} />
+        <Route path="invoices/:id" element={<InvoiceDetailPage />} />
       </Route>
 
       {/* Fallback 404 */}
@@ -207,7 +278,15 @@ export const App: React.FC = () => {
       <ThemeProvider>
         <AuthProvider>
           <BrowserRouter>
-            <AppRoutes />
+            <Suspense
+              fallback={
+                <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-400 text-xs">
+                  Opening your workspace…
+                </div>
+              }
+            >
+              <AppRoutes />
+            </Suspense>
             <Toaster />
           </BrowserRouter>
         </AuthProvider>

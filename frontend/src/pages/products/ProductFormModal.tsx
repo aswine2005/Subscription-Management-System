@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import React from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -32,7 +33,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<ProductFormData>({
+  } = useForm<z.input<typeof productSchema>, unknown, ProductFormData>({
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: product?.name || '',
@@ -91,11 +92,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           <Button variant="ghost" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
-          <Button
-            variant="primary"
-            onClick={handleSubmit(handleFormSubmit)}
-            isLoading={isLoading}
-          >
+          <Button variant="primary" onClick={handleSubmit(handleFormSubmit)} isLoading={isLoading}>
             {isEditing ? 'Save Changes' : 'Create Product'}
           </Button>
         </>
@@ -114,8 +111,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             label="Product Type"
             options={[
               { value: 'service', label: 'Service' },
-              { value: 'goods', label: 'Physical Goods' },
-              { value: 'digital', label: 'Digital License' },
+              { value: 'software', label: 'Software' },
+              { value: 'addon', label: 'Add-on' },
             ]}
             error={errors.type?.message}
             {...register('type')}
@@ -124,7 +121,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Input
-            label="Sales Price ($)"
+            label="Sales Price (₹)"
             type="number"
             step="0.01"
             placeholder="0.00"
@@ -133,7 +130,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           />
 
           <Input
-            label="Cost Price ($)"
+            label="Cost Price (₹)"
             type="number"
             step="0.01"
             placeholder="0.00"
@@ -153,26 +150,26 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
             Description
           </label>
           <textarea
             rows={3}
             placeholder="Detailed description of features, tier limits, or service agreement..."
-            className="w-full rounded-xl p-3 text-sm bg-slate-50/90 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder-slate-400 border border-slate-200 dark:border-slate-700/80 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+            className="w-full rounded-lg p-3 text-sm bg-slate-50/90 text-slate-900 placeholder-slate-400 border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
             {...register('description')}
           />
         </div>
 
         {/* Variants Management Section */}
-        <div className="pt-3 border-t border-slate-200/80 dark:border-slate-800">
+        <div className="pt-3 border-t border-slate-200/80 ">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h5 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+              <h5 className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-indigo-500" />
                 <span>Product Variants & Add-ons</span>
               </h5>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-slate-500 ">
                 Configure tier upgrades or attribute options with supplemental pricing.
               </p>
             </div>
@@ -188,15 +185,16 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           </div>
 
           {fields.length === 0 ? (
-            <div className="p-4 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-center text-xs text-slate-400">
-              No variants defined. Click &ldquo;Add Variant&rdquo; if this product offers tier levels.
+            <div className="p-4 rounded-lg border border-dashed border-slate-300 text-center text-xs text-slate-400">
+              No variants defined. Click &ldquo;Add Variant&rdquo; if this product offers tier
+              levels.
             </div>
           ) : (
             <div className="space-y-2.5">
               {fields.map((field, index) => (
                 <div
                   key={field.id}
-                  className="flex items-center gap-2 bg-slate-50/70 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700/60"
+                  className="flex items-center gap-2 bg-slate-50/70 p-2.5 rounded-lg border border-slate-200 "
                 >
                   <div className="flex-1">
                     <Input
@@ -217,7 +215,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   <button
                     type="button"
                     onClick={() => remove(index)}
-                    className="p-2 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                    className="p-2 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

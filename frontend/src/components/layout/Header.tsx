@@ -1,210 +1,123 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  Menu,
-  Sun,
-  Moon,
-  LogOut,
-  User as UserIcon,
-  ShieldCheck,
-  ExternalLink,
-  ChevronDown,
-} from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Menu, ChevronDown, ChevronRight, LogOut, RefreshCw, Users } from 'lucide-react';
+import apiClient from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
-import { useTheme } from '../../hooks/useTheme';
-import { UserRole } from '../../types';
-
-export interface HeaderProps {
+export const Header: React.FC<{
   onToggleMobileSidebar: () => void;
-}
-
-export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
-  const { user, logout, switchDemoRole } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  showMobileMenu?: boolean;
+}> = ({ onToggleMobileSidebar, showMobileMenu = true }) => {
+  const { user, logout } = useAuth();
+  const { pathname } = useLocation();
   const navigate = useNavigate();
-
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
-
-  const userMenuRef = useRef<HTMLDivElement>(null);
-  const roleMenuRef = useRef<HTMLDivElement>(null);
-
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const { data: connected } = useQuery({
+    queryKey: ['connection'],
+    queryFn: async () => {
+      await apiClient.get('/auth/me');
+      return true;
+    },
+    refetchInterval: 30000,
+    retry: false,
+  });
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        setUserMenuOpen(false);
-      }
-      if (roleMenuRef.current && !roleMenuRef.current.contains(event.target as Node)) {
-        setRoleMenuOpen(false);
-      }
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
   }, []);
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+  const title: Record<string, string> = {
+    dashboard: 'Overview',
+    billing: 'Billing desk',
+    recovery: 'Revenue recovery lab',
+    subscriptions: 'Subscriptions',
+    invoices: 'Invoices',
+    payments: 'Payments',
+    products: 'Products',
+    plans: 'Plans',
+    discounts: 'Discounts',
+    users: 'Team & customers',
+    taxes: 'Taxes & rules',
+    templates: 'Quote templates',
+    portal: 'Customer portal',
   };
-
-  const handleSwitchRole = (role: UserRole) => {
-    switchDemoRole(role);
-    setRoleMenuOpen(false);
-    if (role === 'customer') {
-      navigate('/portal');
-    } else {
-      navigate('/dashboard');
-    }
-  };
-
   return (
-    <header className="glass-header h-16 px-4 sm:px-6 flex items-center justify-between">
-      {/* Left section: mobile hamburger & breadcrumb or title */}
+    <header className="topbar">
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onToggleMobileSidebar}
-          className="md:hidden p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          aria-label="Toggle menu"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
-
-        <div className="hidden sm:flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-          <span>BrightLoop</span>
-          <span>/</span>
-          <span className="text-indigo-600 dark:text-indigo-400 font-bold capitalize">
-            {user?.role || 'admin'} Console
-          </span>
+        {showMobileMenu && (
+          <button
+            className="md:hidden text-slate-500"
+            aria-label="Open navigation"
+            onClick={onToggleMobileSidebar}
+          >
+            <Menu size={19} />
+          </button>
+        )}
+        <div className="topbar-crumb">
+          <span>Workspace</span>
+          <ChevronRight size={10} />
+          <span className="text-slate-700">{title[pathname.split('/')[1]] || 'Overview'}</span>
         </div>
       </div>
-
-      {/* Right section: Demo Role Switcher, Theme Toggle, User Profile */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        {/* Hackathon Demo Quick Role Switcher */}
-        <div className="relative" ref={roleMenuRef}>
-          <button
-            type="button"
-            onClick={() => setRoleMenuOpen(!roleMenuOpen)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 transition-colors"
-            title="Switch Demo User Role"
-          >
-            <ShieldCheck className="w-4 h-4 text-indigo-500" />
-            <span className="hidden sm:inline">Role:</span>
-            <span className="font-bold uppercase">{user?.role || 'admin'}</span>
-            <ChevronDown className="w-3.5 h-3.5 text-indigo-400" />
-          </button>
-
-          {roleMenuOpen && (
-            <div className="absolute right-0 mt-2 w-48 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl shadow-indigo-500/10 py-1.5 z-50 animate-in fade-in zoom-in-95">
-              <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800 text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                Demo Quick-Switch
-              </div>
-              <button
-                type="button"
-                onClick={() => handleSwitchRole('admin')}
-                className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-slate-700 dark:text-slate-200 flex items-center justify-between"
-              >
-                <span>Admin View</span>
-                {user?.role === 'admin' && <span className="text-emerald-500 font-bold">✓</span>}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSwitchRole('staff')}
-                className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-slate-700 dark:text-slate-200 flex items-center justify-between"
-              >
-                <span>Staff View</span>
-                {user?.role === 'staff' && <span className="text-emerald-500 font-bold">✓</span>}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSwitchRole('customer')}
-                className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-slate-700 dark:text-slate-200 flex items-center justify-between"
-              >
-                <span>Customer Portal</span>
-                {user?.role === 'customer' && <span className="text-emerald-500 font-bold">✓</span>}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Theme Toggle */}
+      <div className="topbar-actions">
+        <span className="live-indicator">
+          <span className={`live-dot ${connected ? '' : '!bg-amber-500'}`} />
+          {connected ? 'Connected to local database' : 'Connecting to database'}
+        </span>
         <button
-          type="button"
-          onClick={toggleTheme}
-          className="p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
-          title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
+          title="Refresh workspace"
+          aria-label="Refresh workspace"
+          onClick={() => queryClient.invalidateQueries()}
+          className="text-slate-400 hover:text-slate-700"
         >
-          {theme === 'dark' ? (
-            <Sun className="w-5 h-5 text-amber-400 transition-transform rotate-0 hover:rotate-90" />
-          ) : (
-            <Moon className="w-5 h-5 text-indigo-600 transition-transform hover:-rotate-12" />
-          )}
+          <RefreshCw size={14} />
         </button>
-
-        {/* User Dropdown */}
-        <div className="relative" ref={userMenuRef}>
-          <button
-            type="button"
-            onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
-          >
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-xs shadow-md shadow-indigo-500/20">
-              {user?.name?.charAt(0).toUpperCase() || 'A'}
-            </div>
-            <div className="hidden md:flex flex-col text-left">
-              <span className="text-xs font-semibold text-slate-800 dark:text-slate-100 leading-tight">
-                {user?.name || 'Administrator'}
+        <div className="relative" ref={ref}>
+          <button className="profile-button" onClick={() => setOpen(!open)} aria-expanded={open}>
+            <span className="profile-avatar">
+              {user?.name
+                .split(' ')
+                .map((n) => n[0])
+                .slice(0, 2)
+                .join('')}
+            </span>
+            <span className="profile-name text-left">
+              <span className="block text-[10px] font-medium">{user?.name}</span>
+              <span className="block text-[8px] text-slate-400 capitalize mt-0.5">
+                {user?.role}
               </span>
-              <span className="text-[10px] text-slate-400 capitalize">{user?.role || 'admin'}</span>
-            </div>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
+            </span>
+            <ChevronDown size={11} className="text-slate-400" />
           </button>
-
-          {userMenuOpen && (
-            <div className="absolute right-0 mt-2 w-56 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl shadow-indigo-500/10 py-1.5 z-50">
-              <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800">
-                <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{user?.name}</p>
-                <p className="text-[11px] text-slate-400 truncate">{user?.email}</p>
+          {open && (
+            <div className="profile-menu">
+              <div className="p-2 pb-3 text-[10px] text-slate-400 border-b border-slate-100 mb-1">
+                {user?.email}
               </div>
-
-              <div className="py-1">
+              {user?.role === 'admin' && (
                 <button
-                  type="button"
                   onClick={() => {
-                    setUserMenuOpen(false);
-                    navigate('/portal');
+                    navigate('/users');
+                    setOpen(false);
                   }}
-                  className="w-full text-left px-4 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 flex items-center gap-2"
                 >
-                  <ExternalLink className="w-4 h-4 text-indigo-500" />
-                  <span>Go to Customer Portal</span>
+                  <Users size={14} />
+                  Manage team
                 </button>
-                {user?.role === 'admin' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      navigate('/users');
-                    }}
-                    className="w-full text-left px-4 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 flex items-center gap-2"
-                  >
-                    <UserIcon className="w-4 h-4 text-slate-400" />
-                    <span>Manage Team & Users</span>
-                  </button>
-                )}
-              </div>
-
-              <div className="border-t border-slate-100 dark:border-slate-800 pt-1">
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="w-full text-left px-4 py-2 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
+              )}
+              <button
+                onClick={async () => {
+                  await logout();
+                  navigate('/login');
+                }}
+              >
+                <LogOut size={14} />
+                Sign out
+              </button>
             </div>
           )}
         </div>

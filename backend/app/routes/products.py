@@ -128,6 +128,19 @@ def update_product(
     if product_update.is_active is not None:
         product.is_active = product_update.is_active
 
+    if product_update.variants is not None:
+        # Preserve IDs used by historical subscription and invoice lines.
+        existing = {v.name: v for v in product.variants}
+        names = {v.name for v in product_update.variants}
+        for v in product.variants:
+            v.is_active = v.name in names
+        for v in product_update.variants:
+            if v.name in existing:
+                existing[v.name].additional_price = v.additional_price
+                existing[v.name].is_active = True
+            else:
+                product.variants.append(ProductVariant(name=v.name, additional_price=v.additional_price))
+
     db.commit()
     db.refresh(product)
     log_activity(

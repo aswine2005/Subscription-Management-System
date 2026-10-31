@@ -22,11 +22,11 @@ class User(Base):
     phone = Column(String(50), nullable=True)
     role = Column(SQLEnum(UserRole), default=UserRole.customer, nullable=False, index=True)
     is_active = Column(Boolean, default=True, nullable=False, index=True)
-    
+
     # Password reset support
     reset_token = Column(String(255), nullable=True, index=True)
     reset_token_expires_at = Column(DateTime, nullable=True)
-    
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

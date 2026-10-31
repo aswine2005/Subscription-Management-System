@@ -38,6 +38,10 @@ class Invoice(Base):
     lines = relationship("InvoiceLine", back_populates="invoice", cascade="all, delete-orphan", lazy="select")
     payments = relationship("Payment", back_populates="invoice", cascade="all, delete-orphan", lazy="select")
 
+    @property
+    def subscription_number(self):
+        return self.subscription.subscription_number if self.subscription else None
+
     def __repr__(self):
         return f"<Invoice id={self.id} num={self.invoice_number} status={self.status} total={self.total}>"
 

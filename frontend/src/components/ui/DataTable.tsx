@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import clsx from 'clsx';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -40,6 +40,10 @@ export function DataTable<T extends Record<string, any>>({
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState<number>(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [data.length, pageSize]);
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -86,11 +90,11 @@ export function DataTable<T extends Record<string, any>>({
   };
 
   return (
-    <div className="w-full overflow-hidden rounded-2xl glass-card border border-slate-200/80 dark:border-slate-800">
+    <div className="w-full overflow-hidden rounded-lg glass-card border border-slate-200/80 ">
       <div className="w-full overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <tr className="border-b border-slate-200/80 bg-slate-50/50 text-[11px] font-semibold uppercase tracking-wider text-slate-500 ">
               {columns.map((column) => {
                 const align = column.align || 'left';
                 return (
@@ -100,8 +104,8 @@ export function DataTable<T extends Record<string, any>>({
                     className={clsx(
                       'px-5 py-3.5 transition-colors',
                       alignClasses[align],
-                      column.sortable && 'cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 select-none',
-                      column.className
+                      column.sortable && 'cursor-pointer hover:text-indigo-600 select-none',
+                      column.className,
                     )}
                     onClick={() => column.sortable && handleSort(column.key)}
                   >
@@ -109,7 +113,7 @@ export function DataTable<T extends Record<string, any>>({
                       className={clsx(
                         'inline-flex items-center gap-1.5',
                         align === 'right' && 'flex-row-reverse justify-end',
-                        align === 'center' && 'justify-center'
+                        align === 'center' && 'justify-center',
                       )}
                     >
                       <span>{column.header}</span>
@@ -117,9 +121,9 @@ export function DataTable<T extends Record<string, any>>({
                         <span className="shrink-0 text-slate-400">
                           {sortKey === column.key ? (
                             sortOrder === 'asc' ? (
-                              <ArrowUp className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                              <ArrowUp className="w-3.5 h-3.5 text-indigo-600 " />
                             ) : (
-                              <ArrowDown className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                              <ArrowDown className="w-3.5 h-3.5 text-indigo-600 " />
                             )
                           ) : (
                             <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
@@ -133,7 +137,7 @@ export function DataTable<T extends Record<string, any>>({
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/70 text-sm">
+          <tbody className="divide-y divide-slate-100 text-sm">
             {isLoading ? (
               <tr>
                 <td colSpan={columns.length} className="py-12">
@@ -148,9 +152,7 @@ export function DataTable<T extends Record<string, any>>({
               </tr>
             ) : (
               paginatedData.map((item, index) => {
-                const rowKey = keyExtractor
-                  ? keyExtractor(item, index)
-                  : item.id || `row-${index}`;
+                const rowKey = keyExtractor ? keyExtractor(item, index) : item.id || `row-${index}`;
 
                 return (
                   <tr
@@ -159,8 +161,8 @@ export function DataTable<T extends Record<string, any>>({
                     className={clsx(
                       'group transition-colors duration-150',
                       onRowClick
-                        ? 'cursor-pointer hover:bg-indigo-50/40 dark:hover:bg-slate-800/60'
-                        : 'hover:bg-slate-50/60 dark:hover:bg-slate-800/30'
+                        ? 'cursor-pointer hover:bg-indigo-50/40 '
+                        : 'hover:bg-slate-50/60 ',
                     )}
                   >
                     {columns.map((column) => {
@@ -173,9 +175,9 @@ export function DataTable<T extends Record<string, any>>({
                         <td
                           key={column.key}
                           className={clsx(
-                            'px-5 py-3.5 text-slate-700 dark:text-slate-300 align-middle',
+                            'px-5 py-3.5 text-slate-700 align-middle',
                             alignClasses[align],
-                            column.className
+                            column.className,
                           )}
                         >
                           {cellContent}

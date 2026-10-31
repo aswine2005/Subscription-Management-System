@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, Download, CheckCircle2, Clock } from 'lucide-react';
+import { FileText, Download } from 'lucide-react';
 import { invoicesApi } from '../../api/invoices';
 import { useAuth } from '../../hooks/useAuth';
 import { Invoice } from '../../types';
@@ -13,6 +14,7 @@ import { formatCurrency, formatDate } from '../../utils/formatters';
 
 export const CustomerInvoices: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -29,8 +31,7 @@ export const CustomerInvoices: React.FC = () => {
   });
 
   const handleDownloadInvoice = (inv: Invoice) => {
-    // Generate simple printable view
-    window.print();
+    navigate(`/portal/invoices/${inv.id}`);
   };
 
   const columns: Column<Invoice>[] = [
@@ -40,13 +41,11 @@ export const CustomerInvoices: React.FC = () => {
       sortable: true,
       render: (inv) => (
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
             <FileText className="w-4 h-4" />
           </div>
           <div>
-            <span className="font-bold text-slate-900 dark:text-white font-mono">
-              {inv.invoice_number}
-            </span>
+            <span className="font-semibold text-slate-900 font-mono">{inv.invoice_number}</span>
           </div>
         </div>
       ),
@@ -55,7 +54,7 @@ export const CustomerInvoices: React.FC = () => {
       key: 'subscription_number',
       header: 'Subscription Agreement',
       render: (inv) => (
-        <span className="text-xs font-mono text-indigo-600 dark:text-indigo-400">
+        <span className="text-xs font-mono text-indigo-600 ">
           {inv.subscription_number || 'Direct Order'}
         </span>
       ),
@@ -86,9 +85,7 @@ export const CustomerInvoices: React.FC = () => {
       align: 'right',
       render: (inv) => (
         <div>
-          <span className="font-bold text-slate-900 dark:text-white">
-            {formatCurrency(inv.total_amount)}
-          </span>
+          <span className="font-semibold text-slate-900 ">{formatCurrency(inv.total_amount)}</span>
           {inv.balance_due > 0 && inv.status !== 'paid' && (
             <span className="block text-[11px] text-rose-500 font-semibold">
               Due: {formatCurrency(inv.balance_due)}
@@ -118,17 +115,17 @@ export const CustomerInvoices: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900 ">
             My Invoices & Receipts
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-slate-500 mt-1">
             Download PDF copies of past billing statements and track outstanding balances.
           </p>
         </div>
       </div>
 
       {/* Filter and Search */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 glass-card p-4 rounded-2xl">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 glass-card p-4 rounded-lg">
         <SearchBar
           value={search}
           onChange={setSearch}

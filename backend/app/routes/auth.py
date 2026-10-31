@@ -67,7 +67,12 @@ async def login(
             detail="Missing email/username or password"
         )
 
-    user = authenticate_user(db, email=email, password=password)
+    from pydantic import ValidationError
+    try:
+        credentials = UserLogin.model_validate({"email": email, "password": password})
+    except ValidationError:
+        raise HTTPException(status_code=422, detail="Enter a valid email address and password.")
+    user = authenticate_user(db, email=credentials.email, password=credentials.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -114,7 +119,7 @@ def forgot_password(
     """Initiate password reset flow, generating token and simulating email delivery."""
     request_password_reset(db, data.email)
     return {
-        "message": "Password reset instructions have been dispatched if the account exists."
+        "message": "If the account exists, reset instructions were sent. In local mode, find the email in backend/outbox."
     }
 
 

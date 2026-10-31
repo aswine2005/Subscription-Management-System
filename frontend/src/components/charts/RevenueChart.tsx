@@ -8,7 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, formatCompactCurrency } from '../../utils/formatters';
 
 export interface RevenueDataPoint {
   month: string;
@@ -39,35 +39,35 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({ data, height = 320 }
           <CartesianGrid
             strokeDasharray="3 3"
             stroke="currentColor"
-            className="text-slate-200 dark:text-slate-800"
+            className="text-slate-200 "
             vertical={false}
           />
           <XAxis
             dataKey="month"
             stroke="currentColor"
-            className="text-[11px] text-slate-400 dark:text-slate-500"
+            className="text-[11px] text-slate-400 "
             tickLine={false}
             axisLine={false}
           />
           <YAxis
             stroke="currentColor"
-            className="text-[11px] text-slate-400 dark:text-slate-500"
+            className="text-[11px] text-slate-400 "
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value) => `$${value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}`}
+            tickFormatter={formatCompactCurrency}
           />
           <Tooltip
             content={({ active, payload, label }) => {
               if (active && payload && payload.length) {
                 return (
-                  <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 p-3 rounded-xl shadow-xl shadow-indigo-500/10 text-xs">
-                    <p className="font-semibold text-slate-700 dark:text-slate-200 mb-1.5">{label}</p>
-                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold">
+                  <div className="bg-white/95 backdrop-blur-xl border border-slate-200 p-3 rounded-lg shadow-xl  text-xs">
+                    <p className="font-semibold text-slate-700 mb-1.5">{label}</p>
+                    <div className="flex items-center gap-2 text-indigo-600 font-semibold">
                       <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
                       <span>Revenue: {formatCurrency(payload[0]?.value as number)}</span>
                     </div>
                     {payload[1] && (
-                      <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 mt-1">
+                      <div className="flex items-center gap-2 text-slate-500 mt-1">
                         <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
                         <span>Projected: {formatCurrency(payload[1]?.value as number)}</span>
                       </div>
