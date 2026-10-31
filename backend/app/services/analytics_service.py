@@ -41,7 +41,7 @@ def get_dashboard_summary(db: Session) -> DashboardSummary:
     for payment in payments:
         customer_revenue[invoice_customers[payment.invoice_id]] += payment.amount
         monthly[payment.payment_date.strftime("%Y-%m")] += payment.amount
-    months = []
+    months = [] 
     for i in range(11, -1, -1):
         year, month = divmod(now.year * 12 + now.month - 1 - i, 12)
         label = f"{year:04d}-{month+1:02d}"
@@ -49,7 +49,7 @@ def get_dashboard_summary(db: Session) -> DashboardSummary:
     top = [TopCustomer(customer_id=c.id, name=c.full_name, email=c.email, company_name=c.company_name, revenue=round(customer_revenue[c.id],2), active_subscriptions=by_customer[c.id]) for c in customers]
     activities = db.query(ActivityLog).options(selectinload(ActivityLog.user)).order_by(ActivityLog.created_at.desc(), ActivityLog.id.desc()).limit(12).all()
     return DashboardSummary(active_subscriptions=statuses['active'], total_revenue=round(sum(p.amount for p in payments),2),
-        outstanding_revenue=round(outstanding,2), mrr=round(mrr,2), arr=round(mrr*10,2),
+        outstanding_revenue=round(outstanding,2), mrr=round(mrr,2), arr=round(mrr*12,2),
         overdue_invoices=OverdueInfo(count=overdue_count, total_amount=round(overdue_amount,2)), revenue_by_month=months,
         subscriptions_by_status={s.value: statuses[s.value] for s in SubscriptionStatus},
         subscriptions_by_plan=sorted([PlanSubscriptionCount(plan_id=p.id, plan_name=p.name, count=by_plan[p.id]) for p in plans], key=lambda p: p.count, reverse=True),
