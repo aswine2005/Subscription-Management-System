@@ -9,7 +9,7 @@ engine = create_engine(
     connect_args=connect_args,
     echo=False
 )
-
+# --------------------------------
 # Enable foreign key support for SQLite
 if settings.DATABASE_URL.startswith("sqlite"):
     @event.listens_for(engine, "connect")
