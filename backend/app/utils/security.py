@@ -23,16 +23,16 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     except Exception:
         return False
 
-
+#password function
 def validate_password_strength(password: str) -> bool:
     """
     Validate that password meets security requirements:
-    - Minimum 4 characters
+    - Minimum 8 characters
     - At least 1 uppercase letter
     - At least 1 lowercase letter
     - At least 1 special character
     """
-    if len(password) <= 4 or len(password.encode("utf-8")) > 72:
+    if len(password) <= 8 or len(password.encode("utf-8")) > 72:
         return False
     if not re.search(r"[A-Z]", password):
         return False
