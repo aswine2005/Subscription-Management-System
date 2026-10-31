@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -32,9 +33,11 @@ export const PlanFormModal: React.FC<PlanFormModalProps> = ({
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<PlanFormData>({
+  } = useForm<z.input<typeof planSchema>, unknown, PlanFormData>({
     resolver: zodResolver(planSchema),
     defaultValues: {
+      available_from: plan?.available_from?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+      available_to: plan?.available_to?.slice(0, 10) || '',
       name: plan?.name || '',
       product_id: plan?.product_id || (products[0]?.id ?? ''),
       billing_cycle: plan?.billing_cycle || 'monthly',
@@ -52,6 +55,8 @@ export const PlanFormModal: React.FC<PlanFormModalProps> = ({
   React.useEffect(() => {
     if (plan) {
       reset({
+        available_from: plan.available_from?.slice(0, 10),
+        available_to: plan.available_to?.slice(0, 10) || '',
         name: plan.name,
         product_id: plan.product_id,
         billing_cycle: plan.billing_cycle,
@@ -66,6 +71,8 @@ export const PlanFormModal: React.FC<PlanFormModalProps> = ({
       });
     } else {
       reset({
+        available_from: new Date().toISOString().slice(0, 10),
+        available_to: '',
         name: '',
         product_id: products[0]?.id || '',
         billing_cycle: 'monthly',
@@ -103,11 +110,7 @@ export const PlanFormModal: React.FC<PlanFormModalProps> = ({
           <Button variant="ghost" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
-          <Button
-            variant="primary"
-            onClick={handleSubmit(handleFormSubmit)}
-            isLoading={isLoading}
-          >
+          <Button variant="primary" onClick={handleSubmit(handleFormSubmit)} isLoading={isLoading}>
             {isEditing ? 'Save Plan' : 'Create Plan'}
           </Button>
         </>
@@ -136,7 +139,7 @@ export const PlanFormModal: React.FC<PlanFormModalProps> = ({
             options={[
               { value: 'monthly', label: 'Monthly' },
               { value: 'yearly', label: 'Yearly' },
-              { value: 'quarterly', label: 'Quarterly' },
+              { value: 'daily', label: 'Daily' },
               { value: 'weekly', label: 'Weekly' },
             ]}
             error={errors.billing_cycle?.message}
@@ -144,7 +147,7 @@ export const PlanFormModal: React.FC<PlanFormModalProps> = ({
           />
 
           <Input
-            label="Price per Cycle ($)"
+            label="Price per Cycle (₹)"
             type="number"
             step="0.01"
             placeholder="0.00"
@@ -162,84 +165,68 @@ export const PlanFormModal: React.FC<PlanFormModalProps> = ({
           />
         </div>
 
-        <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-            Plan Summary & SLA Terms
-          </label>
-          <textarea
-            rows={2}
-            placeholder="Benefits, terms, or renewal provisions..."
-            className="w-full rounded-xl p-3 text-sm bg-slate-50/90 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder-slate-400 border border-slate-200 dark:border-slate-700/80 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 outline-none"
-            {...register('description')}
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Available from" type="date" {...register('available_from')} />
+          <Input label="Available until (optional)" type="date" {...register('available_to')} />
         </div>
-
         {/* Policy Toggles */}
-        <div className="pt-3 border-t border-slate-200/80 dark:border-slate-800">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
+        <div className="pt-3 border-t border-slate-200/80 ">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">
             Subscription Policies & Lifecycle Rules
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 cursor-pointer hover:border-indigo-500/50 transition-colors">
+            <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50/50 cursor-pointer hover:border-indigo-500/50 transition-colors">
               <input
                 type="checkbox"
                 className="mt-0.5 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500"
                 {...register('allow_renewal')}
               />
               <div>
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Allow Auto-Renewal
-                </span>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Subscription automatically generates recurring invoice on cycle renewal.
+                <span className="text-xs font-semibold text-slate-800 ">Allow Renewal</span>
+                <p className="text-[11px] text-slate-500 ">
+                  Allow the customer or team to extend this contract.
                 </p>
               </div>
             </label>
 
-            <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 cursor-pointer hover:border-indigo-500/50 transition-colors">
+            <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50/50 cursor-pointer hover:border-indigo-500/50 transition-colors">
               <input
                 type="checkbox"
                 className="mt-0.5 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500"
                 {...register('allow_pause')}
               />
               <div>
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Allow Pausing
-                </span>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-semibold text-slate-800 ">Allow Pausing</span>
+                <p className="text-[11px] text-slate-500 ">
                   Customers/Staff can temporarily pause contract without forfeiture.
                 </p>
               </div>
             </label>
 
-            <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 cursor-pointer hover:border-indigo-500/50 transition-colors">
+            <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50/50 cursor-pointer hover:border-indigo-500/50 transition-colors">
               <input
                 type="checkbox"
                 className="mt-0.5 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500"
                 {...register('allow_early_close')}
               />
               <div>
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Allow Early Close
-                </span>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-semibold text-slate-800 ">Allow Early Close</span>
+                <p className="text-[11px] text-slate-500 ">
                   Allow subscription termination prior to formal contract expiry.
                 </p>
               </div>
             </label>
 
-            <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 cursor-pointer hover:border-indigo-500/50 transition-colors">
+            <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50/50 cursor-pointer hover:border-indigo-500/50 transition-colors">
               <input
                 type="checkbox"
                 className="mt-0.5 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500"
                 {...register('auto_close')}
               />
               <div>
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Auto-Close at Expiry
-                </span>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-semibold text-slate-800 ">Auto-Close at Expiry</span>
+                <p className="text-[11px] text-slate-500 ">
                   Instantly close and disable services upon expiration date.
                 </p>
               </div>

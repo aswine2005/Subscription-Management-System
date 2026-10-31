@@ -1,8 +1,9 @@
+import { z } from 'zod';
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, UserPlus, Users, Mail, Lock } from 'lucide-react';
+import { UserPlus, Mail, Lock } from 'lucide-react';
 import { dashboardApi } from '../../api/dashboard';
 import { userCreateSchema, UserCreateFormData } from '../../utils/validators';
 import { User, UserRole } from '../../types';
@@ -29,7 +30,7 @@ export const UsersPage: React.FC = () => {
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<UserCreateFormData>({
+  } = useForm<z.input<typeof userCreateSchema>, unknown, UserCreateFormData>({
     resolver: zodResolver(userCreateSchema),
     defaultValues: {
       name: '',
@@ -64,10 +65,10 @@ export const UsersPage: React.FC = () => {
       sortable: true,
       render: (u) => (
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-semibold text-xs shrink-0">
             {u.name.charAt(0).toUpperCase()}
           </div>
-          <span className="font-bold text-slate-900 dark:text-white">{u.name}</span>
+          <span className="font-semibold text-slate-900 ">{u.name}</span>
         </div>
       ),
     },
@@ -75,7 +76,7 @@ export const UsersPage: React.FC = () => {
       key: 'email',
       header: 'Email',
       sortable: true,
-      render: (u) => <span className="text-slate-600 dark:text-slate-300 text-xs">{u.email}</span>,
+      render: (u) => <span className="text-slate-600 text-xs">{u.email}</span>,
     },
     {
       key: 'role',
@@ -84,13 +85,13 @@ export const UsersPage: React.FC = () => {
       align: 'center',
       render: (u) => {
         const roleColors: Record<UserRole, string> = {
-          admin: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800',
-          staff: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800',
-          customer: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800',
+          admin: 'bg-rose-50 text-rose-700 border-rose-200 ',
+          staff: 'bg-indigo-50 text-indigo-700 border-indigo-200 ',
+          customer: 'bg-emerald-50 text-emerald-700 border-emerald-200 ',
         };
         return (
           <span
-            className={`px-2.5 py-1 text-xs font-bold uppercase rounded-full border ${roleColors[u.role]}`}
+            className={`px-2.5 py-1 text-xs font-semibold uppercase rounded-full border ${roleColors[u.role]}`}
           >
             {u.role}
           </span>
@@ -116,10 +117,10 @@ export const UsersPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900 ">
             User & Team Management
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-slate-500 mt-1">
             Access privileges, roles, and administrative operator accounts.
           </p>
         </div>
@@ -148,7 +149,7 @@ export const UsersPage: React.FC = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Add Staff or Admin User"
+        title="Add a staff member"
         description="Provision platform credentials for an operational team member."
         size="md"
         footer={
@@ -190,11 +191,7 @@ export const UsersPage: React.FC = () => {
           <div className="grid grid-cols-2 gap-4">
             <Select
               label="Role Assignment"
-              options={[
-                { value: 'staff', label: 'Staff (Operations)' },
-                { value: 'admin', label: 'Admin (Full Access)' },
-                { value: 'customer', label: 'Customer' },
-              ]}
+              options={[{ value: 'staff', label: 'Staff (Operations)' }]}
               error={errors.role?.message}
               {...register('role')}
             />

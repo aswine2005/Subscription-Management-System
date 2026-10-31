@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -11,11 +11,11 @@ import {
   Layers,
   Calendar,
   CheckCircle2,
-  Clock,
   ExternalLink,
   ShieldAlert,
 } from 'lucide-react';
 import clsx from 'clsx';
+import apiClient from '../../api/client';
 import { subscriptionsApi } from '../../api/subscriptions';
 import { invoicesApi } from '../../api/invoices';
 import { Card, CardHeader } from '../../components/ui/Card';
@@ -43,7 +43,8 @@ export const SubscriptionDetailPage: React.FC = () => {
   });
 
   const relatedInvoices = allInvoices.filter(
-    (inv) => inv.subscription_id === id || inv.subscription_number === subscription?.subscription_number
+    (inv) =>
+      inv.subscription_id === id || inv.subscription_number === subscription?.subscription_number,
   );
 
   const advanceMutation = useMutation({
@@ -64,7 +65,7 @@ export const SubscriptionDetailPage: React.FC = () => {
       queryClient.setQueryData(['subscription', id], updated);
       queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
       showToast.success(
-        updated.status === 'paused' ? 'Subscription paused' : 'Subscription resumed'
+        updated.status === 'paused' ? 'Subscription paused' : 'Subscription resumed',
       );
     },
   });
@@ -78,6 +79,21 @@ export const SubscriptionDetailPage: React.FC = () => {
     },
   });
 
+  const renewMutation = useMutation({
+    mutationFn: () => subscriptionsApi.renewSubscription(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      showToast.success('Subscription renewed');
+    },
+  });
+  const invoiceMutation = useMutation({
+    mutationFn: async () => apiClient.post(`/subscriptions/${id}/create-invoice`),
+    onSuccess: ({ data }) => {
+      queryClient.invalidateQueries();
+      navigate(`/invoices/${data.id}`);
+      showToast.success('Invoice created');
+    },
+  });
   if (isLoading) {
     return (
       <div className="py-24">
@@ -90,7 +106,7 @@ export const SubscriptionDetailPage: React.FC = () => {
     return (
       <div className="text-center py-16">
         <ShieldAlert className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-        <h2 className="text-lg font-bold">Subscription Not Found</h2>
+        <h2 className="text-lg font-semibold">Subscription Not Found</h2>
         <Button variant="outline" className="mt-4" onClick={() => navigate('/subscriptions')}>
           Return to Subscriptions
         </Button>
@@ -110,25 +126,52 @@ export const SubscriptionDetailPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap gap-2 justify-end">
+        {['active', 'confirmed'].includes(subscription.status) && (
+          <Button
+            variant="secondary"
+            isLoading={invoiceMutation.isPending}
+            onClick={() => invoiceMutation.mutate()}
+          >
+            Create due invoice
+          </Button>
+        )}
+        {['active', 'confirmed', 'paused', 'closed'].includes(subscription.status) && (
+          <Button
+            variant="outline"
+            isLoading={renewMutation.isPending}
+            onClick={() => renewMutation.mutate()}
+          >
+            Renew contract
+          </Button>
+        )}
+      </div>
+      {subscription.quotation_valid_until && (
+        <p className="subtle text-[11px]">
+          Quotation valid until <strong>{formatDate(subscription.quotation_valid_until)}</strong>.
+          The contract expiry is shown separately in the billing terms.
+        </p>
+      )}
       {/* Top Navigation & Status Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => navigate('/subscriptions')}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-2 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+              <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 ">
                 {subscription.subscription_number}
               </h1>
               <StatusBadge status={subscription.status} size="md" />
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Created on {formatDate(subscription.created_at)} • Payment terms: {subscription.payment_terms || 'Net 30'}
+              Created on {formatDate(subscription.created_at)} • Payment terms:{' '}
+              {subscription.payment_terms || 'Net 30'}
             </p>
           </div>
         </div>
@@ -171,10 +214,12 @@ export const SubscriptionDetailPage: React.FC = () => {
           {subscription.status !== 'closed' && (
             <Button
               variant="ghost"
-              className="text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+              className="text-rose-600 hover:bg-rose-50 "
               leftIcon={<XCircle className="w-4 h-4" />}
               onClick={() => {
-                if (window.confirm('Are you sure you want to close this subscription permanently?')) {
+                if (
+                  window.confirm('Are you sure you want to close this subscription permanently?')
+                ) {
                   closeMutation.mutate();
                 }
               }}
@@ -188,7 +233,7 @@ export const SubscriptionDetailPage: React.FC = () => {
 
       {/* Stepper Timeline Card */}
       <Card className="p-6">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4">
           Contract Lifecycle Progression
         </h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative">
@@ -200,14 +245,17 @@ export const SubscriptionDetailPage: React.FC = () => {
             const isCurrent = currentStepIndex === idx;
 
             return (
-              <div key={step.key} className="flex flex-col items-center sm:items-start text-center sm:text-left">
+              <div
+                key={step.key}
+                className="flex flex-col items-center sm:items-start text-center sm:text-left"
+              >
                 <div className="flex items-center gap-2 w-full mb-2">
                   <div
                     className={clsx(
-                      'w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 transition-all',
+                      'w-8 h-8 rounded-full flex items-center justify-center font-semibold text-xs shrink-0 transition-all',
                       isCompleted
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-300 dark:border-slate-700'
+                        ? 'bg-indigo-600 text-white shadow-md '
+                        : 'bg-slate-100 text-slate-400 border border-slate-300 ',
                     )}
                   >
                     {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
@@ -216,14 +264,14 @@ export const SubscriptionDetailPage: React.FC = () => {
                     className={clsx(
                       'hidden sm:block flex-1 h-1 rounded',
                       idx === pipelineSteps.length - 1 ? 'hidden' : '',
-                      isCompleted && currentStepIndex > idx ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-800'
+                      isCompleted && currentStepIndex > idx ? 'bg-indigo-600' : 'bg-slate-200 ',
                     )}
                   />
                 </div>
                 <span
                   className={clsx(
-                    'text-xs font-bold',
-                    isCurrent ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-300'
+                    'text-xs font-semibold',
+                    isCurrent ? 'text-indigo-600 ' : 'text-slate-700 ',
                   )}
                 >
                   {step.label}
@@ -244,16 +292,17 @@ export const SubscriptionDetailPage: React.FC = () => {
             subtitle="Account entity linked to this subscription"
           />
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 font-bold text-lg">
+            <div className="w-12 h-12 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 shrink-0 font-semibold text-lg">
               {subscription.customer_name?.charAt(0) || <User className="w-6 h-6" />}
             </div>
             <div className="space-y-1">
-              <h4 className="text-base font-bold text-slate-900 dark:text-white">
+              <h4 className="text-base font-semibold text-slate-900 ">
                 {subscription.customer_name}
               </h4>
               <p className="text-xs text-slate-400">{subscription.customer_email}</p>
               <div className="pt-2 text-xs text-slate-500">
-                <span className="font-semibold text-slate-700 dark:text-slate-300">Customer ID:</span> {subscription.customer_id}
+                <span className="font-semibold text-slate-700 ">Customer ID:</span>{' '}
+                {subscription.customer_id}
               </div>
             </div>
           </div>
@@ -268,7 +317,7 @@ export const SubscriptionDetailPage: React.FC = () => {
           <div className="grid grid-cols-2 gap-4 text-xs">
             <div>
               <span className="text-slate-400 block mb-0.5">Assigned Plan</span>
-              <strong className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+              <strong className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-purple-500" />
                 {subscription.plan_name}
               </strong>
@@ -276,14 +325,14 @@ export const SubscriptionDetailPage: React.FC = () => {
 
             <div>
               <span className="text-slate-400 block mb-0.5">Billing Recurrence</span>
-              <strong className="text-sm font-bold text-indigo-600 dark:text-indigo-400 capitalize">
+              <strong className="text-sm font-semibold text-indigo-600 capitalize">
                 {formatBillingCycle(subscription.billing_cycle)}
               </strong>
             </div>
 
             <div>
               <span className="text-slate-400 block mb-0.5">Start Date</span>
-              <span className="text-slate-800 dark:text-slate-200 font-medium flex items-center gap-1">
+              <span className="text-slate-800 font-medium flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
                 {formatDate(subscription.start_date)}
               </span>
@@ -291,7 +340,7 @@ export const SubscriptionDetailPage: React.FC = () => {
 
             <div>
               <span className="text-slate-400 block mb-0.5">Expiry Date</span>
-              <span className="text-slate-800 dark:text-slate-200 font-medium flex items-center gap-1">
+              <span className="text-slate-800 font-medium flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
                 {formatDate(subscription.expiry_date)}
               </span>
@@ -302,16 +351,16 @@ export const SubscriptionDetailPage: React.FC = () => {
 
       {/* Subscription Lines Table */}
       <Card padding="none">
-        <div className="p-6 pb-4 border-b border-slate-100 dark:border-slate-800">
-          <h4 className="text-base font-semibold text-slate-900 dark:text-white">
-            Line Items & Provisioning
-          </h4>
-          <p className="text-xs text-slate-400 mt-0.5">Products and units included in this recurrence period</p>
+        <div className="p-6 pb-4 border-b border-slate-100 ">
+          <h4 className="text-base font-semibold text-slate-900 ">Line Items & Provisioning</h4>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Products and units included in this recurrence period
+          </p>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50/50 dark:bg-slate-800/40 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <thead className="bg-slate-50/50 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
               <tr>
                 <th className="px-6 py-3">Product / Service</th>
                 <th className="px-6 py-3">Variant / Tier</th>
@@ -320,15 +369,15 @@ export const SubscriptionDetailPage: React.FC = () => {
                 <th className="px-6 py-3 text-right">Subtotal</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+            <tbody className="divide-y divide-slate-100 ">
               {subscription.lines.map((line, idx) => (
-                <tr key={idx} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20">
-                  <td className="px-6 py-3.5 font-semibold text-slate-900 dark:text-slate-100">
+                <tr key={idx} className="hover:bg-slate-50/40 ">
+                  <td className="px-6 py-3.5 font-semibold text-slate-900 ">
                     {line.product_name || 'Standard Service'}
                   </td>
                   <td className="px-6 py-3.5 text-slate-500">
                     {line.variant_name ? (
-                      <span className="px-2 py-0.5 text-xs rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      <span className="px-2 py-0.5 text-xs rounded bg-slate-100 text-slate-700 ">
                         {line.variant_name}
                       </span>
                     ) : (
@@ -337,7 +386,7 @@ export const SubscriptionDetailPage: React.FC = () => {
                   </td>
                   <td className="px-6 py-3.5 text-center font-medium">{line.quantity}</td>
                   <td className="px-6 py-3.5 text-right">{formatCurrency(line.unit_price)}</td>
-                  <td className="px-6 py-3.5 text-right font-bold text-slate-900 dark:text-white">
+                  <td className="px-6 py-3.5 text-right font-semibold text-slate-900 ">
                     {formatCurrency(line.quantity * line.unit_price)}
                   </td>
                 </tr>
@@ -347,33 +396,37 @@ export const SubscriptionDetailPage: React.FC = () => {
         </div>
 
         {/* Financial Totals */}
-        <div className="p-6 bg-slate-50/40 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+        <div className="p-6 bg-slate-50/40 border-t border-slate-100 flex justify-end">
           <div className="w-full max-w-xs space-y-2 text-sm">
             <div className="flex justify-between text-slate-500">
               <span>Subtotal:</span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200">
+              <span className="font-semibold text-slate-800 ">
                 {formatCurrency(subscription.subtotal)}
               </span>
             </div>
             <div className="flex justify-between text-slate-500">
-              <span>Tax (VAT 10%):</span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200">
+              <span>Explicit line tax:</span>
+              <span className="font-semibold text-slate-800 ">
                 {formatCurrency(subscription.tax_amount)}
               </span>
             </div>
             {subscription.discount_amount > 0 && (
-              <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
+              <div className="flex justify-between text-emerald-600 font-semibold">
                 <span>Discount applied:</span>
                 <span>-{formatCurrency(subscription.discount_amount)}</span>
               </div>
             )}
-            <div className="flex justify-between text-base font-extrabold pt-2 border-t border-slate-200 dark:border-slate-800 text-indigo-600 dark:text-indigo-400">
-              <span>Recurring Total:</span>
+            <div className="flex justify-between text-base font-semibold pt-2 border-t border-slate-200 text-indigo-600 ">
+              <span>Quoted total before discounts:</span>
               <span>{formatCurrency(subscription.total_amount)}</span>
             </div>
           </div>
         </div>
       </Card>
+
+      <p className="subtle text-[11px]">
+        Invoice totals apply the active tax and eligible discount rules at billing time.
+      </p>
 
       {/* Related Invoices Section */}
       <Card>
@@ -397,19 +450,19 @@ export const SubscriptionDetailPage: React.FC = () => {
             No invoices generated yet for this subscription.
           </div>
         ) : (
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/70">
+          <div className="divide-y divide-slate-100 ">
             {relatedInvoices.map((inv) => (
               <div
                 key={inv.id}
-                className="py-3 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-800/30 px-2 rounded-xl transition-colors cursor-pointer"
+                className="py-3 flex items-center justify-between hover:bg-slate-50/50 px-2 rounded-lg transition-colors cursor-pointer"
                 onClick={() => navigate(`/invoices/${inv.id}`)}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 ">
                     <FileText className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="font-bold text-xs text-slate-900 dark:text-white">
+                    <span className="font-semibold text-xs text-slate-900 ">
                       {inv.invoice_number}
                     </span>
                     <span className="block text-[11px] text-slate-400">
@@ -419,7 +472,7 @@ export const SubscriptionDetailPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-4">
-                  <span className="font-bold text-sm text-slate-900 dark:text-white">
+                  <span className="font-semibold text-sm text-slate-900 ">
                     {formatCurrency(inv.total_amount)}
                   </span>
                   <StatusBadge status={inv.status} size="sm" />

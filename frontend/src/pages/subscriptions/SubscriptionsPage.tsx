@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Repeat, Eye, Play, Pause, XCircle } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, Repeat, Eye, Play, Pause } from 'lucide-react';
 import { subscriptionsApi } from '../../api/subscriptions';
 import { dashboardApi } from '../../api/dashboard';
 import { plansApi } from '../../api/plans';
@@ -19,11 +19,12 @@ import { SubscriptionFormData } from '../../utils/validators';
 
 export const SubscriptionsPage: React.FC = () => {
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(params.get('new') === '1');
 
   const { data: subscriptions = [], isLoading } = useQuery({
     queryKey: ['subscriptions', statusFilter, search],
@@ -51,6 +52,8 @@ export const SubscriptionsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
       showToast.success(`Subscription ${newSub.subscription_number} created successfully`);
+      setIsModalOpen(false);
+      navigate(`/subscriptions/${newSub.id}`);
     },
     onError: (err: any) => {
       showToast.error(err?.message || 'Failed to create subscription');
@@ -88,10 +91,10 @@ export const SubscriptionsPage: React.FC = () => {
       sortable: true,
       render: (sub) => (
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0">
             <Repeat className="w-4 h-4" />
           </div>
-          <span className="font-bold text-slate-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400">
+          <span className="font-semibold text-slate-900 hover:text-indigo-600 ">
             {sub.subscription_number}
           </span>
         </div>
@@ -103,7 +106,7 @@ export const SubscriptionsPage: React.FC = () => {
       sortable: true,
       render: (sub) => (
         <div>
-          <div className="font-semibold text-slate-900 dark:text-slate-100">{sub.customer_name}</div>
+          <div className="font-semibold text-slate-900 ">{sub.customer_name}</div>
           <div className="text-xs text-slate-400">{sub.customer_email}</div>
         </div>
       ),
@@ -114,7 +117,7 @@ export const SubscriptionsPage: React.FC = () => {
       sortable: true,
       render: (sub) => (
         <div>
-          <span className="font-medium text-slate-800 dark:text-slate-200">{sub.plan_name}</span>
+          <span className="font-medium text-slate-800 ">{sub.plan_name}</span>
           <span className="block text-[11px] text-slate-400 capitalize">{sub.billing_cycle}</span>
         </div>
       ),
@@ -144,9 +147,7 @@ export const SubscriptionsPage: React.FC = () => {
       sortable: true,
       align: 'right',
       render: (sub) => (
-        <span className="font-bold text-slate-900 dark:text-white">
-          {formatCurrency(sub.total_amount)}
-        </span>
+        <span className="font-semibold text-slate-900 ">{formatCurrency(sub.total_amount)}</span>
       ),
     },
     {
@@ -158,7 +159,7 @@ export const SubscriptionsPage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate(`/subscriptions/${sub.id}`)}
-            className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
             title="View Details"
           >
             <Eye className="w-4 h-4" />
@@ -167,7 +168,7 @@ export const SubscriptionsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => advanceMutation.mutate(sub.id)}
-              className="p-1.5 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors"
+              className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
               title="Advance to next state"
             >
               <Play className="w-4 h-4" />
@@ -177,7 +178,7 @@ export const SubscriptionsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => pauseMutation.mutate(sub.id)}
-              className="p-1.5 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors"
+              className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
               title="Pause Subscription"
             >
               <Pause className="w-4 h-4" />
@@ -193,10 +194,10 @@ export const SubscriptionsPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900 ">
             Subscriptions
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-slate-500 mt-1">
             Active customer subscriptions, recurring terms, and quotation pipelines.
           </p>
         </div>
@@ -211,7 +212,7 @@ export const SubscriptionsPage: React.FC = () => {
       </div>
 
       {/* Filters and Search */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 glass-card p-4 rounded-2xl">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 glass-card p-4 rounded-lg">
         <SearchBar
           value={search}
           onChange={setSearch}
@@ -253,7 +254,10 @@ export const SubscriptionsPage: React.FC = () => {
       {/* Create Modal */}
       <SubscriptionFormModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setParams({});
+        }}
         onSubmit={handleCreateSubmit}
         customers={users.filter((u) => u.role === 'customer')}
         plans={plans}

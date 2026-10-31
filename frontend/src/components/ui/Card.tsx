@@ -23,10 +23,10 @@ export const Card: React.FC<CardProps> = ({
   return (
     <div
       className={clsx(
-        'glass-card rounded-2xl relative overflow-hidden',
+        'glass-card rounded-lg relative overflow-hidden',
         hover && 'glass-card-hover cursor-pointer',
         paddings[padding],
-        className
+        className,
       )}
       {...props}
     >
@@ -46,8 +46,8 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ title, subtitle, action,
   return (
     <div className={clsx('flex items-center justify-between gap-4 mb-4', className)}>
       <div>
-        <h4 className="text-base font-semibold text-slate-900 dark:text-white">{title}</h4>
-        {subtitle && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>}
+        <h4 className="text-base font-semibold text-slate-900 ">{title}</h4>
+        {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
       </div>
       {action && <div className="flex items-center gap-2">{action}</div>}
     </div>

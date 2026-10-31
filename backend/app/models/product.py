@@ -21,7 +21,7 @@ class Product(Base):
     cost_price = Column(Float, nullable=False, default=0.0)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False, index=True)
-    
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

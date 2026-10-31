@@ -23,12 +23,13 @@ class Subscription(Base):
     plan_id = Column(Integer, ForeignKey("plans.id"), nullable=False, index=True)
     start_date = Column(DateTime, default=datetime.utcnow, nullable=False)
     expiry_date = Column(DateTime, nullable=True)
+    quotation_valid_until = Column(DateTime, nullable=True)
     next_billing_date = Column(DateTime, nullable=True)
     payment_terms = Column(String(64), default="Immediate", nullable=False)
     status = Column(SQLEnum(SubscriptionStatus), default=SubscriptionStatus.draft, nullable=False, index=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     notes = Column(Text, nullable=True)
-    
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

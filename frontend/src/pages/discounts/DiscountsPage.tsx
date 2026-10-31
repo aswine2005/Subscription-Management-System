@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, Percent, Tag } from 'lucide-react';
+import { Plus, Edit2, Trash2, Tag } from 'lucide-react';
 import { discountsApi } from '../../api/discounts';
 import { Discount } from '../../types';
 import { DataTable, Column } from '../../components/ui/DataTable';
@@ -88,12 +88,12 @@ export const DiscountsPage: React.FC = () => {
       sortable: true,
       render: (d) => (
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0">
             <Tag className="w-4 h-4" />
           </div>
           <div>
-            <div className="font-bold text-slate-900 dark:text-white">{d.name}</div>
-            <span className="inline-block px-1.5 py-0.5 rounded text-[11px] font-mono bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 font-semibold">
+            <div className="font-semibold text-slate-900 ">{d.name}</div>
+            <span className="inline-block px-1.5 py-0.5 rounded text-[11px] font-mono bg-slate-100 text-indigo-600 font-semibold">
               {d.code}
             </span>
           </div>
@@ -105,9 +105,7 @@ export const DiscountsPage: React.FC = () => {
       header: 'Type',
       sortable: true,
       render: (d) => (
-        <span className="text-xs uppercase font-medium text-slate-600 dark:text-slate-300">
-          {d.type}
-        </span>
+        <span className="text-xs uppercase font-medium text-slate-600 ">{d.type}</span>
       ),
     },
     {
@@ -116,7 +114,7 @@ export const DiscountsPage: React.FC = () => {
       sortable: true,
       align: 'right',
       render: (d) => (
-        <span className="font-black text-indigo-600 dark:text-indigo-400">
+        <span className="font-semibold text-indigo-600 ">
           {d.type === 'percentage' ? `${d.value}% OFF` : `-${formatCurrency(d.value)}`}
         </span>
       ),
@@ -127,7 +125,7 @@ export const DiscountsPage: React.FC = () => {
       sortable: true,
       align: 'right',
       render: (d) => (
-        <span className="text-xs text-slate-600 dark:text-slate-300">
+        <span className="text-xs text-slate-600 ">
           {d.min_purchase > 0 ? formatCurrency(d.min_purchase) : 'No Min'}
         </span>
       ),
@@ -146,7 +144,7 @@ export const DiscountsPage: React.FC = () => {
       header: 'Uses / Cap',
       align: 'center',
       render: (d) => (
-        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+        <span className="text-xs font-semibold text-slate-700 ">
           {d.used_count} / {d.max_uses || '∞'}
         </span>
       ),
@@ -167,14 +165,14 @@ export const DiscountsPage: React.FC = () => {
           <button
             type="button"
             onClick={(e) => handleOpenEdit(d, e)}
-            className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
           >
             <Edit2 className="w-4 h-4" />
           </button>
           <button
             type="button"
             onClick={(e) => handleDelete(d.id, e)}
-            className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -187,10 +185,10 @@ export const DiscountsPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900 ">
             Promotions & Discounts
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-slate-500 mt-1">
             Configure coupons, campaign rate adjustments, and volume incentives.
           </p>
         </div>

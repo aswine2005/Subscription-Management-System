@@ -97,11 +97,11 @@ export const PlansPage: React.FC = () => {
       sortable: true,
       render: (plan) => (
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/60 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600 shrink-0">
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-bold text-slate-900 dark:text-white">{plan.name}</div>
+            <div className="font-semibold text-slate-900 ">{plan.name}</div>
             {plan.description && (
               <div className="text-xs text-slate-400 line-clamp-1 max-w-xs">{plan.description}</div>
             )}
@@ -114,7 +114,7 @@ export const PlansPage: React.FC = () => {
       header: 'Target Product',
       sortable: true,
       render: (plan) => (
-        <span className="font-medium text-slate-700 dark:text-slate-200">
+        <span className="font-medium text-slate-700 ">
           {plan.product_name || 'Standard Service'}
         </span>
       ),
@@ -124,7 +124,7 @@ export const PlansPage: React.FC = () => {
       header: 'Billing Cycle',
       sortable: true,
       render: (plan) => (
-        <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/50">
+        <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-200 ">
           {formatBillingCycle(plan.billing_cycle)}
         </span>
       ),
@@ -135,7 +135,7 @@ export const PlansPage: React.FC = () => {
       sortable: true,
       align: 'right',
       render: (plan) => (
-        <span className="font-bold text-slate-900 dark:text-white">
+        <span className="font-semibold text-slate-900 ">
           {formatCurrency(plan.price)}
           <span className="text-xs font-normal text-slate-400">/{plan.billing_cycle}</span>
         </span>
@@ -145,9 +145,7 @@ export const PlansPage: React.FC = () => {
       key: 'min_qty',
       header: 'Min Qty',
       align: 'center',
-      render: (plan) => (
-        <span className="text-slate-600 dark:text-slate-300 font-medium">{plan.min_qty}</span>
-      ),
+      render: (plan) => <span className="text-slate-600 font-medium">{plan.min_qty}</span>,
     },
     {
       key: 'status',
@@ -165,7 +163,7 @@ export const PlansPage: React.FC = () => {
           <button
             type="button"
             onClick={(e) => handleOpenEdit(plan, e)}
-            className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
             title="Edit Plan"
           >
             <Edit2 className="w-4 h-4" />
@@ -173,7 +171,7 @@ export const PlansPage: React.FC = () => {
           <button
             type="button"
             onClick={(e) => handleDelete(plan.id, e)}
-            className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
             title="Delete Plan"
           >
             <Trash2 className="w-4 h-4" />
@@ -193,10 +191,10 @@ export const PlansPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900 ">
             Subscription Plans
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-slate-500 mt-1">
             Pricing packages, billing recurrence, and contract lifecycle policies.
           </p>
         </div>
@@ -211,7 +209,7 @@ export const PlansPage: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 glass-card p-4 rounded-2xl">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 glass-card p-4 rounded-lg">
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">
@@ -234,7 +232,7 @@ export const PlansPage: React.FC = () => {
                 { value: 'all', label: 'All Cycles' },
                 { value: 'monthly', label: 'Monthly' },
                 { value: 'yearly', label: 'Yearly' },
-                { value: 'quarterly', label: 'Quarterly' },
+                { value: 'daily', label: 'Daily' },
                 { value: 'weekly', label: 'Weekly' },
               ]}
               value={cycleFilter}

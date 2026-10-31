@@ -1,12 +1,15 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import model_validator, BaseModel, ConfigDict, Field
+
+from app.schemas.base import ValidatedModel, CurrencyModel
+
 from app.models.plan import BillingCycle
 from app.schemas.product import ProductResponse
 
 
-class PlanBase(BaseModel):
-    name: str
+class PlanBase(CurrencyModel):
+    name: str = Field(min_length=2, max_length=255)
     product_id: int
     billing_cycle: BillingCycle
     price: float = Field(default=0.0, ge=0.0)
@@ -19,13 +22,19 @@ class PlanBase(BaseModel):
     allow_renewal: bool = True
     is_active: bool = True
 
+    @model_validator(mode="after")
+    def validate_rules(self):
+        if self.available_to and self.available_to <= self.available_from:
+            raise ValueError('Availability end must be after availability start')
+        return self
+
 
 class PlanCreate(PlanBase):
     pass
 
 
-class PlanUpdate(BaseModel):
-    name: Optional[str] = None
+class PlanUpdate(ValidatedModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=255)
     product_id: Optional[int] = None
     billing_cycle: Optional[BillingCycle] = None
     price: Optional[float] = Field(default=None, ge=0.0)

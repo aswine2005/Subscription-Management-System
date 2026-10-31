@@ -29,4 +29,11 @@ __all__ = [
     "ActivityLog",
     "DiscountType",
     "DiscountAppliesTo",
+    "BillingClaim",
+    "CollectionCase",
+    "RecoveryPlan",
 ]
+
+from app.models.billing_claim import BillingClaim
+
+from app.models.recovery import CollectionCase, RecoveryPlan

@@ -9,6 +9,8 @@ from app.routes.payments import router as payments_router
 from app.routes.discounts import router as discounts_router
 from app.routes.dashboard import router as dashboard_router
 
+from app.routes.recovery import router as recovery_router
+
 api_router = APIRouter()
 
 api_router.include_router(auth_router)
@@ -20,5 +22,6 @@ api_router.include_router(invoices_router)
 api_router.include_router(payments_router)
 api_router.include_router(discounts_router)
 api_router.include_router(dashboard_router)
+api_router.include_router(recovery_router)
 
 __all__ = ["api_router"]

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Edit2, Trash2, Package } from 'lucide-react';
 import { productsApi } from '../../api/products';
-import { Product, ProductType } from '../../types';
+import { Product } from '../../types';
 import { DataTable, Column } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Button } from '../../components/ui/Button';
@@ -92,11 +92,11 @@ export const ProductsPage: React.FC = () => {
       sortable: true,
       render: (product) => (
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 shrink-0">
             <Package className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-bold text-slate-900 dark:text-white">{product.name}</div>
+            <div className="font-semibold text-slate-900 ">{product.name}</div>
             {product.description && (
               <div className="text-xs text-slate-400 line-clamp-1 max-w-xs">
                 {product.description}
@@ -118,9 +118,7 @@ export const ProductsPage: React.FC = () => {
       sortable: true,
       align: 'right',
       render: (product) => (
-        <span className="font-bold text-slate-900 dark:text-white">
-          {formatCurrency(product.sales_price)}
-        </span>
+        <span className="font-semibold text-slate-900 ">{formatCurrency(product.sales_price)}</span>
       ),
     },
     {
@@ -129,9 +127,7 @@ export const ProductsPage: React.FC = () => {
       sortable: true,
       align: 'right',
       render: (product) => (
-        <span className="text-slate-500 dark:text-slate-400">
-          {formatCurrency(product.cost_price)}
-        </span>
+        <span className="text-slate-500 ">{formatCurrency(product.cost_price)}</span>
       ),
     },
     {
@@ -143,9 +139,9 @@ export const ProductsPage: React.FC = () => {
             product.variants.map((v, i) => (
               <span
                 key={i}
-                className="px-2 py-0.5 rounded-md text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60"
+                className="px-2 py-0.5 rounded-md text-[11px] bg-slate-100 text-slate-700 border border-slate-200 "
               >
-                {v.name} (+${v.additional_price})
+                {v.name} (+{formatCurrency(v.additional_price)})
               </span>
             ))
           ) : (
@@ -170,7 +166,7 @@ export const ProductsPage: React.FC = () => {
           <button
             type="button"
             onClick={(e) => handleOpenEdit(product, e)}
-            className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
             title="Edit Product"
           >
             <Edit2 className="w-4 h-4" />
@@ -178,7 +174,7 @@ export const ProductsPage: React.FC = () => {
           <button
             type="button"
             onClick={(e) => handleDelete(product.id, e)}
-            className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
             title="Delete Product"
           >
             <Trash2 className="w-4 h-4" />
@@ -193,10 +189,10 @@ export const ProductsPage: React.FC = () => {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900 ">
             Product Catalog
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-slate-500 mt-1">
             Configure subscription items, rate cards, and variant tiers.
           </p>
         </div>
@@ -211,7 +207,7 @@ export const ProductsPage: React.FC = () => {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 glass-card p-4 rounded-2xl">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 glass-card p-4 rounded-lg">
         <SearchBar
           value={search}
           onChange={setSearch}
@@ -227,8 +223,8 @@ export const ProductsPage: React.FC = () => {
             options={[
               { value: 'all', label: 'All Types' },
               { value: 'service', label: 'Service' },
-              { value: 'goods', label: 'Physical Goods' },
-              { value: 'digital', label: 'Digital License' },
+              { value: 'software', label: 'Software' },
+              { value: 'addon', label: 'Add-on' },
             ]}
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}

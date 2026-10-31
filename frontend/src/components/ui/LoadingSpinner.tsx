@@ -8,11 +8,7 @@ export interface LoadingSpinnerProps {
   className?: string;
 }
 
-export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
-  size = 'md',
-  text,
-  className,
-}) => {
+export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ size = 'md', text, className }) => {
   const sizes = {
     sm: 'w-4 h-4',
     md: 'w-8 h-8',
@@ -21,12 +17,8 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
 
   return (
     <div className={clsx('flex flex-col items-center justify-center p-8 gap-3', className)}>
-      <Loader2 className={clsx('animate-spin text-indigo-600 dark:text-indigo-400', sizes[size])} />
-      {text && (
-        <p className="text-sm font-medium text-slate-500 dark:text-slate-400 animate-pulse">
-          {text}
-        </p>
-      )}
+      <Loader2 className={clsx('animate-spin text-indigo-600 ', sizes[size])} />
+      {text && <p className="text-sm font-medium text-slate-500 animate-pulse">{text}</p>}
     </div>
   );
 };

@@ -1,18 +1,11 @@
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 
-export const formatCurrency = (amount: number | string | undefined | null): string => {
-  if (amount === undefined || amount === null || isNaN(Number(amount))) {
-    return '$0.00';
-  }
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(amount));
-};
+export { formatCurrency, formatCompactCurrency, CURRENCY_CODE } from './currency';
 
-export const formatDate = (dateString?: string | null, formatStr: string = 'MMM dd, yyyy'): string => {
+export const formatDate = (
+  dateString?: string | null,
+  formatStr: string = 'MMM dd, yyyy',
+): string => {
   if (!dateString) return '—';
   try {
     const date = typeof dateString === 'string' ? parseISO(dateString) : dateString;
@@ -29,7 +22,11 @@ export const formatDateTime = (dateString?: string | null): string => {
 export const formatRelativeTime = (dateString?: string | null): string => {
   if (!dateString) return '—';
   try {
-    const date = typeof dateString === 'string' ? parseISO(dateString) : dateString;
+    const utc =
+      dateString.includes('T') && !/[Zz]|[+-]\d{2}:\d{2}$/.test(dateString)
+        ? dateString + 'Z'
+        : dateString;
+    const date = parseISO(utc);
     return formatDistanceToNow(date, { addSuffix: true });
   } catch {
     return dateString;
@@ -45,8 +42,8 @@ export const formatBillingCycle = (cycle?: string): string => {
       return 'Yearly';
     case 'weekly':
       return 'Weekly';
-    case 'quarterly':
-      return 'Quarterly';
+    case 'daily':
+      return 'Daily';
     default:
       return cycle.charAt(0).toUpperCase() + cycle.slice(1);
   }
@@ -54,7 +51,7 @@ export const formatBillingCycle = (cycle?: string): string => {
 
 export const formatNumber = (num: number | string | undefined | null): string => {
   if (num === undefined || num === null || isNaN(Number(num))) return '0';
-  return new Intl.NumberFormat('en-US').format(Number(num));
+  return new Intl.NumberFormat('en-IN').format(Number(num));
 };
 
 export const formatPercent = (percent: number | string | undefined | null): string => {

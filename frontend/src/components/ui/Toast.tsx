@@ -5,7 +5,7 @@ export const showToast = {
     toast.success(message, {
       duration: 3500,
       className:
-        '!bg-white/90 dark:!bg-slate-900/95 !text-slate-900 dark:!text-slate-100 !backdrop-blur-xl !border !border-emerald-500/30 !shadow-xl !shadow-emerald-500/10 !rounded-xl !text-sm !font-medium',
+        '!bg-white/90 !text-slate-900 !backdrop-blur-xl !border !border-emerald-500/30 !shadow-xl !shadow-emerald-500/10 !rounded-lg !text-sm !font-medium',
       iconTheme: {
         primary: '#10b981',
         secondary: '#ffffff',
@@ -16,7 +16,7 @@ export const showToast = {
     toast.error(message, {
       duration: 4500,
       className:
-        '!bg-white/90 dark:!bg-slate-900/95 !text-slate-900 dark:!text-slate-100 !backdrop-blur-xl !border !border-rose-500/30 !shadow-xl !shadow-rose-500/10 !rounded-xl !text-sm !font-medium',
+        '!bg-white/90 !text-slate-900 !backdrop-blur-xl !border !border-rose-500/30 !shadow-xl !shadow-rose-500/10 !rounded-lg !text-sm !font-medium',
       iconTheme: {
         primary: '#ef4444',
         secondary: '#ffffff',
@@ -27,7 +27,7 @@ export const showToast = {
     toast(message, {
       duration: 3500,
       className:
-        '!bg-white/90 dark:!bg-slate-900/95 !text-slate-900 dark:!text-slate-100 !backdrop-blur-xl !border !border-indigo-500/30 !shadow-xl !shadow-indigo-500/10 !rounded-xl !text-sm !font-medium',
+        '!bg-white/90 !text-slate-900 !backdrop-blur-xl !border !border-indigo-500/30 !shadow-xl ! !rounded-lg !text-sm !font-medium',
       icon: '💡',
     });
   },

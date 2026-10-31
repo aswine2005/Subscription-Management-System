@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Repeat, DollarSign, Calendar, ArrowRight, FileText, CheckCircle2 } from 'lucide-react';
+import { Repeat, IndianRupee, Calendar, ArrowRight, FileText } from 'lucide-react';
 import { dashboardApi } from '../../api/dashboard';
 import { useAuth } from '../../hooks/useAuth';
 import { StatCard } from '../../components/ui/StatCard';
@@ -33,7 +33,7 @@ export const CustomerDashboard: React.FC = () => {
   const {
     active_subscriptions_count = 0,
     total_spent = 0,
-    next_billing_date = '2026-05-01',
+    next_billing_date = '',
     recent_subscriptions = [],
     recent_invoices = [],
   } = data || {};
@@ -41,16 +41,17 @@ export const CustomerDashboard: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Welcome Banner */}
-      <div className="glass-card p-6 sm:p-8 rounded-3xl relative overflow-hidden bg-gradient-to-r from-indigo-900/40 via-purple-900/30 to-indigo-950/40 border border-indigo-500/20">
+      <div className="glass-card p-6 sm:p-8 rounded-lg relative overflow-hidden bg-[#eef2e5] border border-indigo-500/20">
         <div className="relative z-10 max-w-2xl">
-          <span className="px-3 py-1 text-xs font-bold rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase tracking-wider">
+          <span className="px-3 py-1 text-xs font-semibold rounded-full bg-indigo-500/20 text-[#74875c] border border-indigo-500/30 uppercase tracking-wider">
             Customer Dashboard
           </span>
-          <h1 className="text-2xl sm:text-3xl font-black text-white mt-3">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 mt-3">
             Welcome back, {user?.name || 'Customer'}!
           </h1>
-          <p className="text-sm text-slate-300 mt-2 leading-relaxed">
-            Manage your company subscriptions, review ongoing SaaS agreements, download tax invoices, and track upcoming billing cycles seamlessly.
+          <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+            Manage your company subscriptions, review ongoing SaaS agreements, download tax
+            invoices, and track upcoming billing cycles seamlessly.
           </p>
         </div>
       </div>
@@ -66,7 +67,7 @@ export const CustomerDashboard: React.FC = () => {
         <StatCard
           label="Total Spent (YTD)"
           value={formatCurrency(total_spent)}
-          icon={<DollarSign className="w-6 h-6" />}
+          icon={<IndianRupee className="w-6 h-6" />}
           iconColor="emerald"
         />
         <StatCard
@@ -101,21 +102,19 @@ export const CustomerDashboard: React.FC = () => {
               No subscriptions found under your account.
             </div>
           ) : (
-            <div className="divide-y divide-slate-100 dark:divide-slate-800/70">
+            <div className="divide-y divide-slate-100 ">
               {recent_subscriptions.map((sub) => (
                 <div
                   key={sub.id}
-                  className="py-3.5 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-800/30 px-2 rounded-xl transition-colors cursor-pointer"
+                  className="py-3.5 flex items-center justify-between hover:bg-slate-50/50 px-2 rounded-lg transition-colors cursor-pointer"
                   onClick={() => navigate('/portal/subscriptions')}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold shrink-0">
+                    <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-semibold shrink-0">
                       <Repeat className="w-4 h-4" />
                     </div>
                     <div>
-                      <h5 className="font-bold text-sm text-slate-900 dark:text-white">
-                        {sub.plan_name}
-                      </h5>
+                      <h5 className="font-semibold text-sm text-slate-900 ">{sub.plan_name}</h5>
                       <span className="text-xs text-slate-400 font-mono">
                         {sub.subscription_number} • Renewal: {formatDate(sub.expiry_date)}
                       </span>
@@ -123,7 +122,7 @@ export const CustomerDashboard: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <span className="font-bold text-sm text-slate-900 dark:text-white">
+                    <span className="font-semibold text-sm text-slate-900 ">
                       {formatCurrency(sub.total_amount)}
                     </span>
                     <StatusBadge status={sub.status} size="sm" />
@@ -156,27 +155,29 @@ export const CustomerDashboard: React.FC = () => {
               No invoices generated yet for your account.
             </div>
           ) : (
-            <div className="divide-y divide-slate-100 dark:divide-slate-800/70">
+            <div className="divide-y divide-slate-100 ">
               {recent_invoices.map((inv) => (
                 <div
                   key={inv.id}
-                  className="py-3.5 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-800/30 px-2 rounded-xl transition-colors cursor-pointer"
+                  className="py-3.5 flex items-center justify-between hover:bg-slate-50/50 px-2 rounded-lg transition-colors cursor-pointer"
                   onClick={() => navigate('/portal/invoices')}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold shrink-0">
+                    <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-semibold shrink-0">
                       <FileText className="w-4 h-4" />
                     </div>
                     <div>
-                      <h5 className="font-bold text-sm text-slate-900 dark:text-white font-mono">
+                      <h5 className="font-semibold text-sm text-slate-900 font-mono">
                         {inv.invoice_number}
                       </h5>
-                      <span className="text-xs text-slate-400">Due: {formatDate(inv.due_date)}</span>
+                      <span className="text-xs text-slate-400">
+                        Due: {formatDate(inv.due_date)}
+                      </span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <span className="font-bold text-sm text-slate-900 dark:text-white">
+                    <span className="font-semibold text-sm text-slate-900 ">
                       {formatCurrency(inv.total_amount)}
                     </span>
                     <StatusBadge status={inv.status} size="sm" />

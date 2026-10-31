@@ -1,16 +1,16 @@
 from datetime import datetime, timedelta
 from typing import Optional, List, Tuple
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func
-from app.models.subscription import Subscription, SubscriptionStatus
+from app.models.subscription import Subscription, SubscriptionStatus, SubscriptionLine
 from app.models.plan import BillingCycle
 from app.models.invoice import Invoice, InvoiceLine, InvoiceStatus
 from app.models.payment import Payment, PaymentMethod, PaymentStatus
 from app.models.discount import Discount, TaxRule, DiscountType, DiscountAppliesTo
 from app.models.user import User
 from app.schemas.payment import PaymentCreate
-from app.utils.email import send_invoice_notification
+from app.utils.money import CURRENCY_CODE, format_inr
 
 
 def generate_invoice_number(db: Session) -> str:
@@ -53,64 +53,97 @@ def generate_payment_number(db: Session) -> str:
     return f"{prefix}{seq:05d}"
 
 
-def get_billing_period_cutoff(cycle: BillingCycle, reference_date: datetime) -> datetime:
-    if cycle == BillingCycle.daily:
-        return reference_date - timedelta(hours=20)
-    elif cycle == BillingCycle.weekly:
-        return reference_date - timedelta(days=6)
-    elif cycle == BillingCycle.monthly:
-        return reference_date - timedelta(days=27)
-    elif cycle == BillingCycle.yearly:
-        return reference_date - timedelta(days=360)
-    return reference_date - timedelta(days=27)
-
-
-def find_applicable_discount(
-    db: Session,
-    subtotal: float,
-    total_quantity: int,
-    product_ids: List[int],
-    reference_date: datetime
-) -> Optional[Tuple[Discount, float]]:
-    """
-    Find best applicable discount for the invoice.
-    Returns tuple of (Discount, discount_amount).
-    """
-    discounts = db.query(Discount).filter(
-        Discount.is_active.is_(True),
-        Discount.start_date <= reference_date,
-    ).all()
-
-    best_discount: Optional[Discount] = None
-    max_discount_amount = 0.0
-
+def find_applicable_discount(db, subtotal, total_quantity, product_ids, reference_date, lines=None, usage=None, discounts=None):
+    if discounts is None:
+        discounts = db.query(Discount).filter(Discount.is_active.is_(True), Discount.start_date <= reference_date).order_by(Discount.id).all()
+    best, best_amount = None, 0.0
     for disc in discounts:
-        if disc.end_date and disc.end_date < reference_date:
+        used = usage.get(disc.id, disc.current_uses) if usage is not None else disc.current_uses
+        if (disc.end_date and disc.end_date < reference_date) or (disc.max_uses and used >= disc.max_uses):
             continue
-        if disc.max_uses and disc.current_uses >= disc.max_uses:
-            continue
-        if subtotal < disc.min_purchase_amount:
-            continue
-        if total_quantity < disc.min_quantity:
-            continue
-
-        if disc.applies_to == DiscountAppliesTo.product and disc.product_id:
-            if disc.product_id not in product_ids:
+        eligible = subtotal
+        quantity = total_quantity
+        if disc.applies_to == DiscountAppliesTo.product:
+            if not disc.product_id or disc.product_id not in product_ids:
                 continue
+            if lines is not None:
+                eligible = sum(l["subtotal"] for l in lines if l["product_id"] == disc.product_id)
+                quantity = sum(l["quantity"] for l in lines if l["product_id"] == disc.product_id)
+        if eligible < disc.min_purchase_amount or quantity < disc.min_quantity:
+            continue
+        amount = min(eligible, round(eligible * disc.value / 100, 2) if disc.type == DiscountType.percentage else disc.value)
+        if amount > best_amount:
+            best, best_amount = disc, amount
+    return (best, round(best_amount, 2)) if best else None
 
-        # Calculate discount amount
-        if disc.type == DiscountType.percentage:
-            amount = round(subtotal * (disc.value / 100.0), 2)
-        else:
-            amount = round(min(disc.value, subtotal), 2)
 
-        if amount > max_discount_amount:
-            max_discount_amount = amount
-            best_discount = disc
+def quote_subscription(db, subscription, now, usage=None, system_tax=None, discounts=None):
+    if system_tax is None:
+        system_tax = get_active_tax_rate(db)
+    lines = []
+    for line in subscription.lines:
+        subtotal = round(line.quantity * line.unit_price, 2)
+        rate = line.tax_rate if line.tax_rate > 0 else system_tax
+        lines.append(dict(product_id=line.product_id, variant_id=line.variant_id, quantity=line.quantity,
+                          unit_price=line.unit_price, tax_rate=rate, subtotal=subtotal, total=round(subtotal * (1 + rate / 100), 2)))
+    subtotal = round(sum(l["subtotal"] for l in lines), 2)
+    result = find_applicable_discount(db, subtotal, sum(l["quantity"] for l in lines), [l["product_id"] for l in lines], now, lines, usage, discounts)
+    discount, amount = result if result else (None, 0.0)
+    eligible = [l for l in lines if not discount or discount.applies_to != DiscountAppliesTo.product or l["product_id"] == discount.product_id]
+    eligible_subtotal = sum(l["subtotal"] for l in eligible)
+    taxes = 0.0
+    for l in lines:
+        allocation = amount * l["subtotal"] / eligible_subtotal if l in eligible and eligible_subtotal else 0.0
+        taxes += round(max(0, l["subtotal"] - allocation) * l["tax_rate"] / 100, 2)
+    tax = round(taxes, 2)
+    return dict(subtotal=subtotal, discount_amount=amount, tax_amount=tax, total=round(subtotal-amount+tax, 2), discount=discount, lines=lines)
 
-    if best_discount and max_discount_amount > 0:
-        return best_discount, max_discount_amount
-    return None
+
+def skip_reason(db, sub, now, claims=None, invoices_by_sub=None):
+    from app.services.calendar import billing_window
+    from app.models.billing_claim import BillingClaim
+    if sub.start_date > now:
+        return "Starts in the future"
+    if sub.expiry_date and sub.expiry_date < now and sub.plan.auto_close:
+        return "Contract expired · auto-close enabled"
+    if sub.next_billing_date and sub.next_billing_date > now:
+        return "Next billing date has not arrived"
+    start, end, period = billing_window(sub.start_date, sub.plan.billing_cycle, now)
+    claimed = f"{sub.id}:{period}" in claims if claims is not None else db.get(BillingClaim, f"{sub.id}:{period}")
+    if claimed:
+        return "Already billed for this period"
+    existing = any(start <= date < end for date in invoices_by_sub.get(sub.id, [])) if invoices_by_sub is not None else db.query(Invoice).filter(Invoice.subscription_id == sub.id, Invoice.issue_date >= start, Invoice.issue_date < end, Invoice.status != InvoiceStatus.cancelled).first()
+    return "Already billed for this period" if existing else None
+
+
+def preview_billing(db, billing_date=None):
+    now = billing_date or datetime.utcnow()
+    from app.models.billing_claim import BillingClaim
+    from app.config import settings
+    from collections import defaultdict
+    subs = db.query(Subscription).options(selectinload(Subscription.lines), selectinload(Subscription.plan), selectinload(Subscription.customer)).filter(Subscription.status == SubscriptionStatus.active).order_by(Subscription.id).all()
+    claims = {c.key for c in db.query(BillingClaim).all()}
+    invoices_by_sub = defaultdict(list)
+    for sub_id, issue_date in db.query(Invoice.subscription_id, Invoice.issue_date).filter(Invoice.status != InvoiceStatus.cancelled):
+        invoices_by_sub[sub_id].append(issue_date)
+    taxes = get_active_tax_rate(db)
+    discounts = db.query(Discount).filter(Discount.is_active.is_(True), Discount.start_date <= now).order_by(Discount.id).all()
+    rows, usage = [], {}
+    for sub in subs:
+        reason = skip_reason(db, sub, now, claims, invoices_by_sub)
+        q = quote_subscription(db, sub, now, usage, taxes, discounts)
+        if not reason and q["discount"]:
+            disc = q["discount"]
+            usage[disc.id] = usage.get(disc.id, disc.current_uses) + 1
+        rows.append(dict(id=sub.id, subscription_number=sub.subscription_number, customer_name=sub.customer.full_name,
+                         plan_name=sub.plan.name, billing_cycle=sub.plan.billing_cycle.value, next_billing_date=sub.next_billing_date,
+                         status="skipped" if reason else "ready", reason=reason or "Ready to invoice", subtotal=q["subtotal"],
+                         tax_amount=q["tax_amount"], discount_amount=q["discount_amount"], total=q["total"],
+                         discount_name=q["discount"].name if q["discount"] else None))
+    ready = [row for row in rows if row["status"] == "ready"]
+    return dict(currency=CURRENCY_CODE, automation_enabled=settings.AUTO_BILLING, billing_date=now, ready_count=len(ready), skipped_count=len(rows)-len(ready),
+                subtotal=round(sum(r["subtotal"] for r in ready),2), discount_amount=round(sum(r["discount_amount"] for r in ready),2),
+                tax_amount=round(sum(r["tax_amount"] for r in ready),2), total=round(sum(r["total"] for r in ready),2), rows=rows)
 
 
 def get_active_tax_rate(db: Session) -> float:
@@ -127,6 +160,8 @@ def generate_invoice_from_subscription(
     issue_date: Optional[datetime] = None,
     force: bool = False
 ) -> Invoice:
+    from app.services.locking import lock_write
+    lock_write(db)
     subscription = db.query(Subscription).filter(Subscription.id == subscription_id).first()
     if not subscription:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
@@ -139,20 +174,10 @@ def generate_invoice_from_subscription(
 
     now = issue_date or datetime.utcnow()
 
-    # Prevent duplicate billing for the current period
-    if not force:
-        period_cutoff = get_billing_period_cutoff(subscription.plan.billing_cycle, now)
-        recent_invoice = db.query(Invoice).filter(
-            Invoice.subscription_id == subscription.id,
-            Invoice.issue_date >= period_cutoff,
-            Invoice.status != InvoiceStatus.cancelled
-        ).first()
-
-        if recent_invoice:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Invoice already generated for subscription {subscription.subscription_number} in current billing cycle (Invoice: {recent_invoice.invoice_number})."
-            )
+    # No bypass for duplicate billing: the same contract period is claimed only once.
+    reason = skip_reason(db, subscription, now)
+    if reason:
+        raise HTTPException(status_code=409, detail=reason)
 
     # Calculate due date based on payment terms
     terms_days = 0
@@ -169,52 +194,11 @@ def generate_invoice_from_subscription(
         terms_days = 15
     due_date = now + timedelta(days=terms_days)
 
-    # Compute subtotal and lines
-    subtotal = 0.0
-    total_quantity = 0
-    product_ids: List[int] = []
-    line_snapshots = []
-
-    active_system_tax = get_active_tax_rate(db)
-
-    for sub_line in subscription.lines:
-        line_subtotal = round(sub_line.quantity * sub_line.unit_price, 2)
-        # Apply tax: use line tax rate if specified, else active system tax rate
-        tax_rate = sub_line.tax_rate if sub_line.tax_rate > 0 else active_system_tax
-        line_tax = round(line_subtotal * (tax_rate / 100.0), 2)
-        line_total = round(line_subtotal + line_tax, 2)
-
-        subtotal += line_subtotal
-        total_quantity += sub_line.quantity
-        product_ids.append(sub_line.product_id)
-
-        line_snapshots.append({
-            "product_id": sub_line.product_id,
-            "variant_id": sub_line.variant_id,
-            "quantity": sub_line.quantity,
-            "unit_price": sub_line.unit_price,
-            "tax_rate": tax_rate,
-            "subtotal": line_subtotal,
-            "total": line_total,
-        })
-
-    subtotal = round(subtotal, 2)
-
-    # Check and apply discounts
-    discount_result = find_applicable_discount(db, subtotal, total_quantity, product_ids, now)
-    discount_amount = 0.0
-    if discount_result:
-        matched_discount, discount_amount = discount_result
-        matched_discount.current_uses += 1
-
-    # Tax on discounted or original subtotal
-    taxable_amount = max(0.0, subtotal - discount_amount)
-    total_tax = round(sum(l["total"] - l["subtotal"] for l in line_snapshots), 2)
-    # If a discount was applied across the invoice, scale total_tax proportionally
-    if subtotal > 0 and discount_amount > 0:
-        total_tax = round(total_tax * (taxable_amount / subtotal), 2)
-
-    total_amount = round(taxable_amount + total_tax, 2)
+    q = quote_subscription(db, subscription, now)
+    subtotal, discount_amount, total_tax, total_amount = q["subtotal"], q["discount_amount"], q["tax_amount"], q["total"]
+    line_snapshots = q["lines"]
+    if q["discount"]:
+        q["discount"].current_uses += 1
     inv_number = generate_invoice_number(db)
 
     invoice = Invoice(
@@ -223,7 +207,7 @@ def generate_invoice_from_subscription(
         customer_id=subscription.customer_id,
         issue_date=now,
         due_date=due_date,
-        status=InvoiceStatus.confirmed,
+        status=InvoiceStatus.draft,
         subtotal=subtotal,
         tax_amount=total_tax,
         discount_amount=discount_amount,
@@ -246,25 +230,20 @@ def generate_invoice_from_subscription(
         )
         db.add(inv_line)
 
-    # Advance subscription next_billing_date
-    subscription.next_billing_date = now + (
-        timedelta(days=1) if subscription.plan.billing_cycle == BillingCycle.daily
-        else timedelta(weeks=1) if subscription.plan.billing_cycle == BillingCycle.weekly
-        else timedelta(days=30) if subscription.plan.billing_cycle == BillingCycle.monthly
-        else timedelta(days=365)
-    )
-
-    db.commit()
+    from app.services.calendar import billing_window
+    from app.models.billing_claim import BillingClaim
+    from sqlalchemy.exc import IntegrityError
+    _, next_date, period = billing_window(subscription.start_date, subscription.plan.billing_cycle, now)
+    subscription.next_billing_date = next_date
+    db.add(BillingClaim(key=f"{subscription.id}:{period}", invoice_id=invoice.id))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="This billing period was already processed. Refresh the preview.")
     db.refresh(invoice)
 
-    # Trigger simulated email notification
-    if subscription.customer and subscription.customer.email:
-        send_invoice_notification(
-            to_email=subscription.customer.email,
-            invoice_number=invoice.invoice_number,
-            total_amount=invoice.total,
-            due_date=invoice.due_date.strftime("%Y-%m-%d")
-        )
+    # Delivery happens explicitly through the Send invoice action.
 
     return invoice
 
@@ -280,7 +259,7 @@ def generate_bulk_invoices(
     now = billing_date or datetime.utcnow()
     active_subs = db.query(Subscription).filter(
         Subscription.status == SubscriptionStatus.active
-    ).all()
+    ).order_by(Subscription.id).all()
 
     generated_invoices: List[Invoice] = []
     skipped_count = 0
@@ -300,7 +279,8 @@ def generate_bulk_invoices(
             else:
                 skipped_count += 1
         except Exception:
-            skipped_count += 1
+            db.rollback()
+            raise
 
     return len(generated_invoices), skipped_count, generated_invoices
 
@@ -316,10 +296,14 @@ def record_payment(
     Auto-updates invoice to 'paid' when outstanding balance reaches 0.
     Returns (payment, invoice, amount_due).
     """
+    from app.services.locking import lock_write
+    lock_write(db)
     invoice = db.query(Invoice).filter(Invoice.id == payment_in.invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
 
+    if invoice.status == InvoiceStatus.draft:
+        raise HTTPException(status_code=400, detail="Confirm this invoice before recording a payment.")
     if invoice.status == InvoiceStatus.paid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -332,6 +316,9 @@ def record_payment(
             detail=f"Cannot record payment for cancelled invoice {invoice.invoice_number}."
         )
 
+    if current_user.role.value == "customer":
+        raise HTTPException(status_code=403, detail="Payments must be recorded by the billing team after receipt.")
+
     # Check user permissions (customer can only pay their own invoices)
     if current_user.role.value == "customer" and invoice.customer_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
@@ -343,10 +330,10 @@ def record_payment(
     ).scalar() or 0.0
 
     outstanding = round(invoice.total - existing_paid, 2)
-    if payment_in.amount > outstanding + 0.01:
+    if round(payment_in.amount, 2) > outstanding:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Payment amount (${payment_in.amount:.2f}) exceeds outstanding balance (${outstanding:.2f})."
+            detail=f"Payment amount ({format_inr(payment_in.amount)}) exceeds outstanding balance ({format_inr(outstanding)})."
         )
 
     pay_number = generate_payment_number(db)

@@ -14,7 +14,8 @@ from seed_data import seed_database
 
 def init_db():
     print("[INIT] Ensuring database tables are created...")
-    Base.metadata.create_all(bind=engine)
+    from app.migrations import ensure_schema
+    ensure_schema()
     
     db = SessionLocal()
     user_count = db.query(User).count()
@@ -30,5 +31,5 @@ def init_db():
 
 if __name__ == "__main__":
     init_db()
-    print("[SERVER] Starting BrightLoop API server on http://0.0.0.0:8000 ...")
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    print("[SERVER] Starting BrightLoop API server on http://127.0.0.1:8000 ...")
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)

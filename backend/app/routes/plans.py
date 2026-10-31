@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.plan import Plan, BillingCycle
+from app.utils.money import format_inr
 from app.models.product import Product
 from app.models.user import User
 from app.schemas.plan import PlanCreate, PlanUpdate, PlanResponse
@@ -71,7 +72,7 @@ def create_plan(
         entity_type="plan",
         entity_id=plan.id,
         user_id=admin.id,
-        details=f"Admin created plan: {plan.name} (${plan.price}/{plan.billing_cycle.value})"
+        details=f"Admin created plan: {plan.name} ({format_inr(plan.price)}/{plan.billing_cycle.value})"
     )
     return plan
 
@@ -101,6 +102,15 @@ def update_plan(
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
 
+    from app.schemas.plan import PlanBase
+    from pydantic import ValidationError
+    merged = {key: getattr(plan, key, field.default) for key, field in PlanBase.model_fields.items()}
+    merged.update(plan_update.model_dump(exclude_unset=True))
+    try:
+        PlanBase.model_validate(merged)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
     if plan_update.name is not None:
         plan.name = plan_update.name.strip()
     if plan_update.product_id is not None:
@@ -116,7 +126,7 @@ def update_plan(
         plan.min_quantity = plan_update.min_quantity
     if plan_update.available_from is not None:
         plan.available_from = plan_update.available_from
-    if plan_update.available_to is not None:
+    if "available_to" in plan_update.model_fields_set:
         plan.available_to = plan_update.available_to
     if plan_update.auto_close is not None:
         plan.auto_close = plan_update.auto_close

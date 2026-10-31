@@ -27,18 +27,18 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def validate_password_strength(password: str) -> bool:
     """
     Validate that password meets security requirements:
-    - Minimum 8 characters
+    - Minimum 4 characters
     - At least 1 uppercase letter
     - At least 1 lowercase letter
     - At least 1 special character
     """
-    if len(password) < 8:
+    if len(password) <= 4 or len(password.encode("utf-8")) > 72:
         return False
     if not re.search(r"[A-Z]", password):
         return False
     if not re.search(r"[a-z]", password):
         return False
-    if not re.search(r"[!@#$%^&*()_+\-=\[\]{}|;:,.<>?/~`\"'\\]", password):
+    if not re.search(r"[^a-zA-Z0-9\s]", password):
         return False
     return True
 
@@ -48,7 +48,7 @@ def create_access_token(subject: Union[str, Any], expires_delta: Optional[timede
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    
+
     to_encode = {"exp": expire, "sub": str(subject)}
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt

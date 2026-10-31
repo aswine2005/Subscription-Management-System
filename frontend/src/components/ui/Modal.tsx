@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -21,19 +21,42 @@ export const Modal: React.FC<ModalProps> = ({
   footer,
   size = 'md',
 }) => {
+  const dialogRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const elements = () =>
+      Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
+        ) || [],
+      );
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        const list = elements();
+        const first = list[0],
+          last = list[list.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        }
+        if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
       if (e.key === 'Escape' && isOpen) {
         onClose();
       }
     };
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      elements()[0]?.focus();
       window.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       document.body.style.overflow = 'unset';
       window.removeEventListener('keydown', handleKeyDown);
+      if (isOpen) previous?.focus();
     };
   }, [isOpen, onClose]);
 
@@ -60,23 +83,26 @@ export const Modal: React.FC<ModalProps> = ({
       <div className="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
         <div
           className={clsx(
-            'relative transform overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-left shadow-2xl shadow-indigo-500/10 transition-all sm:my-8 w-full',
-            sizeClasses[size]
+            'relative transform overflow-hidden rounded-lg bg-white border border-slate-200 text-left shadow-2xl  transition-all sm:my-8 w-full',
+            sizeClasses[size],
           )}
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 ">
             <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h3>
-              {description && (
-                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{description}</p>
-              )}
+              <h3 className="text-lg font-semibold text-slate-900 ">{title}</h3>
+              {description && <p className="mt-0.5 text-xs text-slate-500 ">{description}</p>}
             </div>
             <button
               type="button"
+              aria-label="Close dialog"
               onClick={onClose}
-              className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -87,7 +113,7 @@ export const Modal: React.FC<ModalProps> = ({
 
           {/* Footer */}
           {footer && (
-            <div className="flex items-center justify-end gap-3 px-6 py-4 bg-slate-50/60 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 bg-slate-50/60 border-t border-slate-100 ">
               {footer}
             </div>
           )}

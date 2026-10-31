@@ -1,6 +1,10 @@
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+import json
+
+from app.schemas.base import ValidatedModel, CurrencyModel
+
 from app.models.subscription import SubscriptionStatus
 from app.schemas.user import UserResponse
 from app.schemas.product import ProductResponse, ProductVariantResponse
@@ -8,7 +12,7 @@ from app.schemas.plan import PlanResponse
 
 
 # Subscription Line Schemas
-class SubscriptionLineBase(BaseModel):
+class SubscriptionLineBase(CurrencyModel):
     product_id: int
     variant_id: Optional[int] = None
     quantity: int = Field(default=1, ge=1)
@@ -34,7 +38,7 @@ class SubscriptionLineResponse(SubscriptionLineBase):
 
 
 # Subscription Schemas
-class SubscriptionBase(BaseModel):
+class SubscriptionBase(CurrencyModel):
     customer_id: int
     plan_id: int
     start_date: datetime = Field(default_factory=datetime.utcnow)
@@ -43,7 +47,7 @@ class SubscriptionBase(BaseModel):
     notes: Optional[str] = None
 
 
-class SubscriptionCreate(BaseModel):
+class SubscriptionCreate(CurrencyModel):
     customer_id: Optional[int] = None  # Inferred for customer role if omitted
     plan_id: int
     start_date: Optional[datetime] = None
@@ -53,7 +57,7 @@ class SubscriptionCreate(BaseModel):
     lines: Optional[List[SubscriptionLineCreate]] = None
 
 
-class SubscriptionUpdate(BaseModel):
+class SubscriptionUpdate(ValidatedModel):
     plan_id: Optional[int] = None
     expiry_date: Optional[datetime] = None
     payment_terms: Optional[str] = None
@@ -61,12 +65,13 @@ class SubscriptionUpdate(BaseModel):
     lines: Optional[List[SubscriptionLineCreate]] = None
 
 
-class SubscriptionStatusTransition(BaseModel):
+class SubscriptionStatusTransition(ValidatedModel):
     target_status: SubscriptionStatus
     reason: Optional[str] = None
 
 
 class SubscriptionResponse(SubscriptionBase):
+    quotation_valid_until: Optional[datetime] = None
     id: int
     subscription_number: str
     status: SubscriptionStatus
@@ -83,19 +88,36 @@ class SubscriptionResponse(SubscriptionBase):
 
 
 # Quotation Template Schemas
-class QuotationTemplateBase(BaseModel):
-    name: str
+class QuotationTemplateBase(ValidatedModel):
+    name: str = Field(min_length=2, max_length=255)
     plan_id: int
     validity_days: int = Field(default=30, ge=1)
-    default_lines: Optional[str] = None
+    default_lines: Optional[str] = Field(default=None, max_length=50000)
     is_active: bool = True
 
 
 class QuotationTemplateCreate(QuotationTemplateBase):
-    pass
+    @field_validator("default_lines")
+    @classmethod
+    def valid_lines(cls, value):
+        if value is None:
+            return None
+        try:
+            parsed = json.loads(value)
+            if not isinstance(parsed, list) or not parsed or len(parsed) > 100:
+                raise ValueError("Use between one and 100 product lines")
+            lines = [SubscriptionLineCreate.model_validate(line) for line in parsed]
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"Invalid template product lines: {exc}") from exc
+        return json.dumps([line.model_dump(mode="json", exclude_unset=True) for line in lines])
 
 
 class QuotationTemplateResponse(QuotationTemplateBase):
+    currency: str = "INR"
+    quoted_subtotal: Optional[float] = None
+    is_available: bool = True
+    unavailable_reason: Optional[str] = None
+    line_count: int = 1
     id: int
     created_at: datetime
     updated_at: datetime
@@ -104,7 +126,7 @@ class QuotationTemplateResponse(QuotationTemplateBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class QuotationTemplateApply(BaseModel):
+class QuotationTemplateApply(ValidatedModel):
     customer_id: Optional[int] = None
     payment_terms: Optional[str] = "Immediate"
     start_date: Optional[datetime] = None

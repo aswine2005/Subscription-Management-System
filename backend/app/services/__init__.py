@@ -23,7 +23,6 @@ from app.services.billing_service import (
 )
 from app.services.analytics_service import (
     get_dashboard_summary,
-    calculate_mrr,
 )
 
 __all__ = [
@@ -45,5 +44,4 @@ __all__ = [
     "record_payment",
     "get_invoice_balance",
     "get_dashboard_summary",
-    "calculate_mrr",
 ]

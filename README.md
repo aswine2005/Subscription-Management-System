@@ -1,273 +1,140 @@
-# 🚀 BrightLoop — Subscription Management System
+<div align="center">
 
-## Architecture & Setup Guide
+# Brightloop
 
-### What Makes BrightLoop Unique
+### Subscription operations, in order.
 
-| Feature | Typical Hackathon Projects | BrightLoop |
-|---|---|---|
-| **Data** | Static JSON files | Real SQLite DB with SQLAlchemy ORM + 250+ seeded records |
-| **Auth** | Basic login | JWT + RBAC (Admin/Staff/Customer) with proper password policy |
-| **UI** | Bootstrap templates | Custom glassmorphism design system with dark/light mode |
-| **Analytics** | Basic counts | MRR, ARR, churn rate, revenue trends, customer segmentation |
-| **Billing** | Manual | Automated bulk invoice generation with tax & discount auto-application |
-| **Architecture** | Monolith | Clean separation: FastAPI → Services → Models → SQLAlchemy |
-| **Validation** | Server-only | Dual: Zod (client) + Pydantic (server) with real-time feedback |
+One workspace to set up plans, run recurring billing, reconcile receipts, and decide what needs attention next.
+
+<img src="frontend/public/brightloop-flow.svg" alt="Animated flow: set subscription terms, bill from active contracts, and follow the cash through receipts and recovery." width="100%" />
+
+Local app: `http://localhost:3000` · API docs: `http://localhost:8000/docs` · [Demo walkthrough](DEMO.md)
+
+</div>
 
 ---
 
-### Tech Stack
+## The problem we solve
 
-```mermaid
-flowchart LR
-    subgraph Frontend ["Frontend (React 18 + TypeScript)"]
-        A[Vite] --> B[React Router v6]
-        B --> C[TanStack Query]
-        C --> D[React Hook Form + Zod]
-        B --> E[Recharts]
-        B --> F[Tailwind CSS + Glassmorphism]
-    end
+Subscription businesses often manage renewals in spreadsheets, prepare invoices by hand, match receipts across bank statements, and assemble revenue reports at month end. Brightloop connects those steps to one persistent ledger, so the team can see what is active, what was billed, what was paid, and what still needs attention.
 
-    subgraph Backend ["Backend (FastAPI + Python)"]
-        G[FastAPI] --> H[Pydantic v2]
-        G --> I[SQLAlchemy 2.0]
-        I --> J[(SQLite)]
-        G --> K[JWT Auth]
-        G --> L[Services Layer]
-    end
+## The differentiator: Revenue Recovery Lab
 
-    Frontend -->|REST API| Backend
+The Recovery Lab turns overdue invoices into a practical, reviewable work queue. It groups debt by customer, uses completed receipts to calculate remaining balances, and connects those balances to the customer's active monthly recurring revenue. Staff can inspect the evidence behind each priority and test a plan against the team's follow-up capacity.
+
+- **Explainable priorities:** invoice age, relative balance, and missed payment promises are shown as separate score components.
+- **Useful collection holds:** disputes, on-track promises, and contacts made during the last two days stay out of fresh follow-up targets.
+- **A real what-if tool:** choose the number of customers to target, the share of eligible balances to model, and a minimum invoice age.
+- **A reliable follow-up record:** log notes, disputes, contacts, and dated payment promises. Promises are reconciled against completed receipts.
+- **A plan the team can review:** save a timestamped snapshot of assumptions, target accounts, and modeled results.
+- **A careful boundary:** scenarios never create payments; reminder emails are drafts for staff to review and send through their own channel.
+
+The score sorts operational work. The collection percentage is an assumption selected by the user. Neither is presented as an AI prediction or a guarantee of payment.
+
+## Subscription workflows
+
+- Maintain products, variants, prices, plans, taxes, and discount rules.
+- Create customer quotations from reusable templates and track them through the subscription lifecycle.
+- Preview upcoming invoices, understand skipped billing rows, and generate invoices with duplicate-period protection.
+- Confirm, cancel, print, and review invoices. Record full or partial receipts by date, method, and reference.
+- View recurring revenue, actual receipts, balances, overdue accounts, plan mix, and recent activity.
+- Give customers a role-scoped portal for their own subscriptions, quotations, and invoices.
+- Run a billing desk rehearsal before generating a batch. Previewing does not create invoices or consume discounts.
+
+The application uses rupees throughout (`INR`), including tax and discount calculations, invoice totals, receipts, charts, exports, and reminder drafts. Existing seeded numeric prices are treated as rupees; no exchange-rate conversion is applied. The Odoo brand variant surcharge is ₹560.
+
+## How it is built
+
+```text
+React + TypeScript + Vite
+          │  JSON API, JWT sessions
+          ▼
+FastAPI + Pydantic
+          │  SQLAlchemy
+          ▼
+SQLite database on this machine
 ```
 
----
+The UI reads live data from the API and refreshes operational summaries every 30 seconds. SQLite persists subscriptions, invoices, payments, saved recovery plans, and collection actions in `backend/brightloop.db`. The local demo does not require a hosted database or an AI API. When SMTP is not configured, generated email is saved in the private local `backend/outbox/` folder.
 
-### Quick Start
+## Run locally
 
-#### 1. Backend
-```bash
+Requirements: Python 3.10 or newer and Node.js 20 or newer.
+
+Terminal 1 — API:
+
+```sh
 cd backend
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate        # Windows PowerShell: venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python run.py
 ```
-Backend runs at **http://localhost:8000**. API docs at **/docs**.
 
-#### 2. Frontend
-```bash
+Terminal 2 — web app:
+
+```sh
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
-Frontend runs at **http://localhost:5173**
 
-#### 3. Login Credentials
+Open [http://localhost:3000](http://localhost:3000). The API docs are at [http://localhost:8000/docs](http://localhost:8000/docs). The database is created and seeded at first start; later changes persist between restarts.
+
+### Local demo sign-ins
+
 | Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@brightloop.dev | Admin@123 |
-| Staff | sarah@brightloop.dev | Staff@123 |
-| Staff | mike@brightloop.dev | Staff@123 |
-| Customer | (any seeded customer) | Customer@123 |
+| --- | --- | --- |
+| Admin | `admin@brightloop.dev` | `Admin@123` |
+| Staff | `sarah.staff@brightloop.dev` | `Staff@123` |
+| Staff | `david.staff@brightloop.dev` | `Staff@123` |
+| Customer | `liam.vance@apexglobalsaas.com` | `Customer@123` |
 
----
+These are local seeded demo credentials. Other seeded customers use `Customer@123`; newly registered users choose their own password. SQLite itself has no database username or password. Application accounts are authenticated by the API, with passwords stored as hashes.
 
-### System Architecture
+## Try the Recovery Lab
 
-```mermaid
-flowchart TD
-    subgraph Clients
-        A["🌐 Admin Dashboard"]
-        B["👤 Staff Portal"]
-        C["🏢 Customer Portal"]
-    end
+1. Sign in as Admin or Staff and open **Recovery lab**.
+2. Open an account to inspect its invoices and priority evidence.
+3. Adjust the follow-up capacity and collection assumption. The result is a scenario based on current eligible invoice balances.
+4. Save a plan and reopen it to review its historical snapshot.
+5. Try a follow-up note or prepare a reminder draft. These actions do not contact a customer.
 
-    subgraph API ["FastAPI Backend"]
-        D[Auth Routes] --> E[JWT Middleware]
-        F[Product Routes] --> E
-        G[Plan Routes] --> E
-        H[Subscription Routes] --> E
-        I[Invoice Routes] --> E
-        J[Payment Routes] --> E
-        K[Discount Routes] --> E
-        L[Dashboard Routes] --> E
-    end
+For a full billing demonstration, including creating a quotation, generating an invoice, and recording partial receipts, see [DEMO.md](DEMO.md).
 
-    subgraph Services
-        M[Auth Service]
-        N[Billing Service]
-        O[Subscription Service]
-        P[Analytics Service]
-    end
+## Validation and performance
 
-    subgraph Database
-        Q[(SQLite via SQLAlchemy)]
-    end
+Run the frontend checks:
 
-    A & B & C -->|HTTPS / REST| API
-    E --> Services
-    Services --> Database
+```sh
+cd frontend
+npm test
+npm run build
 ```
 
----
+Run the isolated API tests and the reproducible 1,000-contract benchmark:
 
-### Database Schema
-
-```mermaid
-erDiagram
-    USERS ||--o{ SUBSCRIPTIONS : "has"
-    USERS ||--o{ INVOICES : "receives"
-    PRODUCTS ||--o{ PRODUCT_VARIANTS : "has"
-    PRODUCTS ||--o{ PLANS : "offered_as"
-    PLANS ||--o{ SUBSCRIPTIONS : "used_in"
-    SUBSCRIPTIONS ||--o{ SUBSCRIPTION_LINES : "contains"
-    SUBSCRIPTIONS ||--o{ INVOICES : "generates"
-    INVOICES ||--o{ INVOICE_LINES : "contains"
-    INVOICES ||--o{ PAYMENTS : "paid_by"
-    DISCOUNTS ||--o{ INVOICES : "applied_to"
-    TAX_RULES ||--o{ INVOICE_LINES : "applied_to"
-
-    USERS {
-        int id PK
-        string email UK
-        string hashed_password
-        string full_name
-        enum role "admin|staff|customer"
-        bool is_active
-        datetime created_at
-    }
-
-    PRODUCTS {
-        int id PK
-        string name
-        enum type "software|addon|service"
-        decimal sales_price
-        decimal cost_price
-        text description
-        bool is_active
-    }
-
-    PLANS {
-        int id PK
-        int product_id FK
-        string name
-        enum billing_cycle "daily|weekly|monthly|yearly"
-        decimal price
-        int min_quantity
-        date available_from
-        date available_to
-        bool auto_close
-        bool allow_early_close
-        bool allow_pause
-        bool allow_renewal
-    }
-
-    SUBSCRIPTIONS {
-        int id PK
-        string subscription_number UK
-        int customer_id FK
-        int plan_id FK
-        date start_date
-        date expiry_date
-        string payment_terms
-        enum status "draft|quotation|confirmed|active|paused|closed"
-        int created_by FK
-    }
-
-    INVOICES {
-        int id PK
-        string invoice_number UK
-        int subscription_id FK
-        int customer_id FK
-        date issue_date
-        date due_date
-        enum status "draft|confirmed|paid|cancelled|overdue"
-        decimal subtotal
-        decimal tax_amount
-        decimal discount_amount
-        decimal total
-    }
-
-    PAYMENTS {
-        int id PK
-        int invoice_id FK
-        decimal amount
-        date payment_date
-        enum method "bank_transfer|credit_card|upi|cash"
-        string reference_note
-    }
-
-    DISCOUNTS {
-        int id PK
-        string name
-        enum type "fixed|percentage"
-        decimal value
-        decimal min_purchase
-        int min_quantity
-        date start_date
-        date end_date
-        int max_uses
-        int current_uses
-    }
+```sh
+cd backend
+source venv/bin/activate
+pip install -r requirements-dev.txt
+python -m unittest discover -s tests -v
+python -m tests.benchmark
 ```
 
----
+The benchmark exercises subscription and invoice reads, dashboard summaries, billing previews, and recovery analysis/simulation against a generated SQLite fixture. It does not modify the seeded demo database.
 
-### Git Branching Strategy
+## Project layout
 
-For your team of 3-4 members:
-
-```
-main (production-ready)
-  └── develop (integration)
-       ├── feature/auth         (Member 1)
-       ├── feature/billing      (Member 2)
-       ├── feature/dashboard    (Member 3)
-       └── feature/ui-polish    (Member 4)
+```text
+backend/app/       API routes, schemas, models, and services
+backend/tests/     Isolated API tests and benchmark
+frontend/src/       React pages, API clients, and shared UI
+frontend/public/    Static assets, including the animated workflow illustration
+DEMO.md             Judge walkthrough and requirement map
+LOGIN.md            Local demo access notes
 ```
 
-**Rules:**
-1. Never push directly to `main`
-2. Create feature branches from `develop`
-3. Do Pull Requests for code review
-4. Merge to `develop` first, then `develop` → `main`
+## Scope
 
-```bash
-# Team setup commands
-git checkout -b develop
-git push -u origin develop
-
-# Each member:
-git checkout develop
-git pull origin develop
-git checkout -b feature/your-feature
-# ... work ...
-git add . && git commit -m "feat: description"
-git push -u origin feature/your-feature
-# Then create PR on GitHub
-```
-
----
-
-### API Endpoints Reference
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/v1/auth/register` | Public | Customer registration |
-| POST | `/api/v1/auth/login` | Public | Login, returns JWT |
-| POST | `/api/v1/auth/forgot-password` | Public | Password reset request |
-| GET | `/api/v1/users` | Admin | List all users |
-| POST | `/api/v1/users/staff` | Admin | Create staff user |
-| GET/POST | `/api/v1/products` | Admin | Manage products |
-| GET/POST | `/api/v1/plans` | Admin | Manage plans |
-| GET/POST | `/api/v1/subscriptions` | Staff+ | Manage subscriptions |
-| PATCH | `/api/v1/subscriptions/{id}/status` | Staff+ | Transition status |
-| GET/POST | `/api/v1/invoices` | Staff+ | Manage invoices |
-| POST | `/api/v1/invoices/generate-bulk` | Staff+ | Bulk billing |
-| GET/POST | `/api/v1/payments` | Staff+ | Record payments |
-| GET/POST | `/api/v1/discounts` | Admin | Manage discounts |
-| GET | `/api/v1/dashboard/summary` | Staff+ | Analytics data |
-
----
-
-> [!TIP]
-> The seeded database contains 12 months of realistic data, making dashboard charts look impressive from the first demo.
+Brightloop records receipts; it does not charge cards or move money. Real email delivery requires SMTP configuration. The current project is designed as a local hackathon demo; a production deployment would add payment-provider webhooks, managed backups, rate limits, and operational monitoring.
