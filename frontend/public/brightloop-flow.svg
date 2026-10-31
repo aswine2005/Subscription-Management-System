@@ -43,10 +43,26 @@
   <path d="M287 145H355 M602 145H670" fill="none" stroke="url(#flow)" stroke-width="2" stroke-dasharray="5 13" stroke-linecap="round">
     <animate attributeName="stroke-dashoffset" from="0" to="-36" dur="1.6s" repeatCount="indefinite"/>
   </path>
+  <circle cx="172" cy="145" r="24" fill="none" stroke="#a0b18a" stroke-width="1" opacity=".45">
+    <animate attributeName="r" values="20;27;20" dur="4.5s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values=".1;.55;.1" dur="4.5s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="487" cy="145" r="24" fill="none" stroke="#bc8d70" stroke-width="1" opacity=".4">
+    <animate attributeName="r" values="20;27;20" dur="4.5s" begin="1.5s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values=".1;.5;.1" dur="4.5s" begin="1.5s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="802" cy="145" r="24" fill="none" stroke="#a0b18a" stroke-width="1" opacity=".4">
+    <animate attributeName="r" values="20;27;20" dur="4.5s" begin="3s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values=".1;.55;.1" dur="4.5s" begin="3s" repeatCount="indefinite"/>
+  </circle>
   <path id="cycle" d="M790 201 C790 239 172 239 172 201" fill="none" stroke="#a5b594" stroke-width="1.4" stroke-dasharray="4 7" stroke-linecap="round"/>
   <path d="M166 207l6-9 6 9" fill="none" stroke="#85966f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
   <circle r="4" fill="#af6547">
     <animateMotion dur="5.5s" repeatCount="indefinite" path="M287 145H670"/>
+    <animate attributeName="r" values="3.5;5;3.5" dur="1s" repeatCount="indefinite"/>
+  </circle>
+  <circle r="3" fill="#83956a" opacity=".8">
+    <animateMotion dur="11s" repeatCount="indefinite" path="M172 201 C790 239 172 239 172 201"/>
   </circle>
   <text x="480" y="231" fill="#6f7c68" font-family="system-ui,-apple-system,Segoe UI,sans-serif" font-size="10" font-weight="600" letter-spacing="1.4" text-anchor="middle">ONE CONNECTED, REPEATABLE BILLING MONTH</text>
 </svg>
